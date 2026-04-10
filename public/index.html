@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PAD 对话 Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0c0f14;
+        --panel: #131a23;
+        --panel-soft: rgba(19, 26, 35, 0.82);
+        --border: #243042;
+        --text: #e8edf5;
+        --muted: #8b98ab;
+        --accent: #5b8cff;
+        --user: #1c2a3b;
+        --assistant: #121922;
+        --chip: #1a2432;
+        --danger: #f0b4bc;
+        --danger-bg: #2a1518;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "DM Sans", system-ui, sans-serif;
+        background: radial-gradient(1200px 600px at 20% -10%, #1a2740 0%, transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, #13202e 0%, transparent 50%), var(--bg);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 24px 18px 36px;
+        min-height: 100vh;
+      }
+      header {
+        margin-bottom: 18px;
+      }
+      h1 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 0.92rem;
+        margin: 6px 0 0;
+        max-width: 900px;
+        line-height: 1.55;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(360px, 1.05fr) minmax(420px, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--panel-soft);
+        backdrop-filter: blur(10px);
+        overflow: hidden;
+      }
+      .panel-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+      .panel-title {
+        font-size: 0.98rem;
+        font-weight: 600;
+      }
+      .panel-meta {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .chat-panel {
+        display: flex;
+        flex-direction: column;
+        height: 50vh;
+        max-height: 50vh;
+        min-height: 420px;
+        position: sticky;
+        top: 24px;
+      }
+      .msgs {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .bubble {
+        max-width: 92%;
+        padding: 12px 14px;
+        border-radius: 14px;
+        line-height: 1.55;
+        font-size: 0.95rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .bubble.user {
+        align-self: flex-end;
+        background: var(--user);
+        border: 1px solid var(--border);
+      }
+      .bubble.assistant {
+        align-self: flex-start;
+        background: var(--assistant);
+        border: 1px solid #1c2633;
+      }
+      .bubble .role {
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+        letter-spacing: 0.04em;
+      }
+      .bubble .meta {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed var(--border);
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .composer {
+        border-top: 1px solid var(--border);
+        padding: 12px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        background: rgba(12, 15, 20, 0.5);
+        flex-shrink: 0;
+      }
+      textarea,
+      button {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      textarea {
+        flex: 1;
+        resize: none;
+        min-height: 54px;
+        max-height: 180px;
+        padding: 12px;
+      }
+      textarea:focus {
+        outline: 2px solid rgba(91, 140, 255, 0.35);
+        outline-offset: 1px;
+      }
+      button {
+        padding: 11px 18px;
+        cursor: pointer;
+        background: linear-gradient(145deg, #4a74e8, #3d5fc9);
+        border: none;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .err {
+        margin: 10px 16px 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--danger-bg);
+        border: 1px solid #4a2329;
+        color: var(--danger);
+        font-size: 0.88rem;
+        display: none;
+      }
+      .err.show {
+        display: block;
+      }
+      .trace-panel {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+      }
+      .summary-strip {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .trace-tabs {
+        display: flex;
+        gap: 10px;
+        padding: 12px 16px 0;
+      }
+      .trace-tab {
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(10, 15, 22, 0.45);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 0.88rem;
+      }
+      .trace-tab.active {
+        background: rgba(91, 140, 255, 0.18);
+        border-color: rgba(91, 140, 255, 0.55);
+      }
+      .summary-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(16, 23, 33, 0.65);
+        padding: 12px;
+      }
+      .summary-card .label {
+        color: var(--muted);
+        font-size: 0.74rem;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .summary-card .value {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+      .summary-card .subvalue {
+        color: var(--muted);
+        font-size: 0.82rem;
+        margin-top: 6px;
+      }
+      .trace-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+      }
+      .trace-body.prompts-mode {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .trace-body.prompts-mode .trace-main {
+        grid-column: 1 / -1;
+        width: 100%;
+        max-width: 100%;
+      }
+      .trace-body.prompts-mode .node {
+        width: 100%;
+      }
+      .trace-main {
+        padding: 16px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .trace-main.prompts-mode textarea {
+        width: 100%;
+        min-height: 220px;
+        max-height: none;
+      }
+      .trace-side {
+        border-left: 1px solid var(--border);
+        padding: 16px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .trace-side.hidden {
+        display: none;
+      }
+      .node {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: rgba(16, 23, 33, 0.72);
+        overflow: hidden;
+      }
+      .node-head {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+      .node-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .node-meta {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .node-body {
+        padding: 14px;
+        display: grid;
+        gap: 12px;
+      }
+      .kv-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .kv {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        background: rgba(10, 15, 22, 0.45);
+      }
+      .kv .k {
+        color: var(--muted);
+        font-size: 0.75rem;
+        margin-bottom: 6px;
+      }
+      .kv .v {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: var(--chip);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 0.8rem;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: #d7e1ef;
+      }
+      .block {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: rgba(10, 15, 22, 0.45);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .danger {
+        color: var(--danger);
+      }
+      .score-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .score-item {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(10, 15, 22, 0.45);
+        padding: 10px;
+      }
+      .score-item .name {
+        color: var(--muted);
+        font-size: 0.74rem;
+        margin-bottom: 4px;
+      }
+      .score-item .score {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .history-item {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        background: rgba(16, 23, 33, 0.55);
+        cursor: pointer;
+      }
+      .history-item.active {
+        border-color: rgba(91, 140, 255, 0.65);
+        box-shadow: inset 0 0 0 1px rgba(91, 140, 255, 0.3);
+      }
+      .history-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .history-text {
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
+      }
+      .placeholder {
+        border: 1px dashed var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .stats-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(10, 15, 22, 0.45);
+        padding: 12px;
+      }
+      .stats-card .title {
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .stat-line {
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.6;
+      }
+      .control-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .control-row select {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      @media (max-width: 1080px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .trace-body {
+          grid-template-columns: 1fr;
+        }
+        .trace-side {
+          border-left: none;
+          border-top: 1px solid var(--border);
+        }
+        .summary-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 720px) {
+        .summary-strip,
+        .kv-grid,
+        .score-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>PAD 对话 Demo</h1>
+        <p class="sub">
+          左侧是对话，右侧展示本轮用户输入经过 Q1~Q12 打分、PAD 计算、IDT 变化与状态路由的完整节点结果。
+          模型固定为 <code>doubao-seed-2-0-lite-260215</code>。
+        </p>
+      </header>
+
+      <div class="layout">
+        <section class="panel chat-panel">
+          <div class="panel-header">
+            <div class="panel-title">对话区</div>
+            <div class="panel-meta">与大模型直接对话</div>
+          </div>
+          <div id="err" class="err"></div>
+          <div id="msgs" class="msgs"></div>
+          <div class="composer">
+            <textarea id="input" rows="2" placeholder="输入一句话，例如：你今天真让我很开心。"></textarea>
+            <button type="button" id="send">发送</button>
+          </div>
+        </section>
+
+        <section class="panel trace-panel">
+          <div class="panel-header">
+            <div class="panel-title">节点可视化</div>
+            <div class="panel-meta" id="traceMeta">等待第一轮消息</div>
+          </div>
+          <div class="summary-strip" id="summaryStrip"></div>
+          <div class="trace-tabs">
+            <button type="button" class="trace-tab active" id="tabNodes">节点可视化</button>
+            <button type="button" class="trace-tab" id="tabEvaluation">评测</button>
+            <button type="button" class="trace-tab" id="tabPrompts">修改提示词</button>
+          </div>
+          <div class="trace-body" id="traceBody">
+            <div class="trace-main" id="traceMain"></div>
+            <aside class="trace-side" id="traceSide">
+              <div class="panel-title">轮次历史</div>
+              <div class="panel-meta">点击右侧条目切换查看某一轮的节点详情</div>
+              <div id="historyList"></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const INITIAL_IDT = { i: 15, d: 80, t: 30 };
+      const STATE_LABELS = {
+        coldWar: {
+          label: "冰点冷战",
+          priorityBand: "P2",
+          priority: 2,
+          perception: "掌控力高居不下但情绪如死水般沉寂，让他刻意拉开与危险源的距离。",
+          rangeText: "I[30,80] D[60,100] T[0,19]",
+        },
+        obsession: {
+          label: "极度羁绊",
+          priorityBand: "P1",
+          priority: 1,
+          perception: "极端的亲昵交织着彻底的失控与高能情绪，让他沉溺于无可救药的迷恋中。",
+          rangeText: "I[85,100] D[0,19] T[85,100]",
+        },
+        breakdown: {
+          label: "失控与破防",
+          priorityBand: "P2",
+          priority: 2,
+          perception: "彻底丧失掌控权且情绪极度紧绷，让他感到前所未有的恐慌与应激。",
+          rangeText: "I[0,100] D[0,29] T[80,100]",
+        },
+        pushPull: {
+          label: "试探与推拉",
+          priorityBand: "P3",
+          priority: 3,
+          perception: "掌控力开始动摇，情绪张力逐渐升高，未知的诱惑让他既警惕又兴奋。",
+          rangeText: "I[0,100] D[40,60] T[40,75]",
+        },
+        dailyFallback: {
+          label: "日常兜底",
+          priorityBand: "P4",
+          priority: 4,
+          perception: "当前掌控力充足且情绪平稳，让他感到一切都在理性分析的预期内。",
+          rangeText: "I[0,100] D[50,100] T[0,60]",
+        },
+      };
+
+      const msgsEl = document.getElementById("msgs");
+      const inputEl = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+      const errEl = document.getElementById("err");
+      const summaryStripEl = document.getElementById("summaryStrip");
+      const traceBodyEl = document.getElementById("traceBody");
+      const traceMainEl = document.getElementById("traceMain");
+      const traceSideEl = document.getElementById("traceSide");
+      const historyListEl = document.getElementById("historyList");
+      const traceMetaEl = document.getElementById("traceMeta");
+      const tabNodesEl = document.getElementById("tabNodes");
+      const tabEvaluationEl = document.getElementById("tabEvaluation");
+      const tabPromptsEl = document.getElementById("tabPrompts");
+
+      /** @type {{role:string,content:string}[]} */
+      let history = [{ role: "system", content: "你是简洁、友好的中文助手。" }];
+      let currentIdt = { ...INITIAL_IDT };
+      /** @type {Array<any>} */
+      let roundTraces = [];
+      let roundCounter = 0;
+      let selectedRoundId = null;
+      let activeTraceTab = "nodes";
+      let evaluatingBatchRoundId = null;
+      let evaluationRounds = 10;
+      let standaloneEvaluationBatch = null;
+      let evaluationProgress = null;
+      let promptDefaults = null;
+      let promptOverrides = null;
+
+      function showErr(msg) {
+        errEl.textContent = msg;
+        errEl.classList.toggle("show", Boolean(msg));
+      }
+
+      function escapeHtml(text) {
+        return String(text ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function fmt(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) return "-";
+        return Number(value).toFixed(2).replace(/\.00$/, "");
+      }
+
+      function formatRouteItem(item) {
+        if (!item) return "-";
+        if (typeof item === "string") {
+          const meta = STATE_LABELS[item];
+          return meta ? `${meta.label} (${meta.priorityBand})` : item;
+        }
+        return `${item.label} (${item.priorityBand})`;
+      }
+
+      function getStateMeta(code) {
+        return STATE_LABELS[code] || null;
+      }
+
+      function addBubble(role, content, metaText = "") {
+        const div = document.createElement("div");
+        div.className = `bubble ${role}`;
+        div.innerHTML = `
+          <div class="role">${role === "user" ? "你" : "助手"}</div>
+          <div>${escapeHtml(content || "")}</div>
+          ${metaText ? `<div class="meta">${escapeHtml(metaText)}</div>` : ""}
+        `;
+        msgsEl.appendChild(div);
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+        return div;
+      }
+
+      function latestTrace() {
+        return roundTraces.find((item) => item.id === selectedRoundId) || roundTraces[0] || null;
+      }
+
+      function renderSummary() {
+        const active = latestTrace();
+        const idt = active?.nextIdt || currentIdt;
+        const routeText = active?.trace?.routes?.primary
+          ? formatRouteItem(active.trace.routes.primary)
+          : active?.trace?.routes?.unmatched
+            ? "unmatched"
+            : "未路由";
+
+        summaryStripEl.innerHTML = `
+          <div class="summary-card">
+            <div class="label">当前 I</div>
+            <div class="value">${fmt(idt.i)}</div>
+            <div class="subvalue">初始值 15</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">当前 D</div>
+            <div class="value">${fmt(idt.d)}</div>
+            <div class="subvalue">初始值 80</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">当前 T</div>
+            <div class="value">${fmt(idt.t)}</div>
+            <div class="subvalue">初始值 30</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">路由状态</div>
+            <div class="value">${escapeHtml(routeText)}</div>
+            <div class="subvalue">${active ? `总耗时 ${fmt(active.trace.requestLatencyMs)}ms` : "等待一轮请求"}</div>
+          </div>
+        `;
+      }
+
+      function renderHistory() {
+        if (!roundTraces.length) {
+          historyListEl.innerHTML = `<div class="placeholder">发送第一条消息后，这里会显示每一轮的 IDT 与状态命中结果。</div>`;
+          return;
+        }
+
+        historyListEl.innerHTML = roundTraces
+          .map((round) => {
+            const matches = round.trace.routes.matches?.length
+              ? round.trace.routes.matches.map((item) => formatRouteItem(item)).join(", ")
+              : round.trace.routes.unmatched
+                ? "unmatched"
+                : "未路由";
+            return `
+              <div class="history-item ${round.id === selectedRoundId ? "active" : ""}" data-round-id="${round.id}">
+                <div class="history-title">第 ${round.roundNo} 轮</div>
+                <div class="chip-row" style="margin-bottom:8px;">
+                  <span class="chip">状态 ${escapeHtml(matches)}</span>
+                </div>
+                <div class="history-text">
+                  I ${fmt(round.nextIdt.i)} / D ${fmt(round.nextIdt.d)} / T ${fmt(round.nextIdt.t)}
+                </div>
+                <div class="history-text" style="margin-top:6px;">${escapeHtml(round.trace.userInput)}</div>
+              </div>
+            `;
+          })
+          .join("");
+
+        historyListEl.querySelectorAll("[data-round-id]").forEach((node) => {
+          node.addEventListener("click", () => {
+            selectedRoundId = Number(node.getAttribute("data-round-id"));
+            renderTrace();
+          });
+        });
+      }
+
+      function renderQScores(qScores) {
+        if (!qScores) {
+          return `<div class="muted">暂无可用的 Q1~Q12 分数。</div>`;
+        }
+        return `
+          <div class="score-grid">
+            ${Object.entries(qScores)
+              .map(
+                ([name, score]) => `
+                  <div class="score-item">
+                    <div class="name">${escapeHtml(name.toUpperCase())}</div>
+                    <div class="score">${escapeHtml(score)}</div>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        `;
+      }
+
+      function nodeTemplate(title, meta, body) {
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">${escapeHtml(title)}</div>
+              <div class="node-meta">${escapeHtml(meta || "")}</div>
+            </div>
+            <div class="node-body">${body}</div>
+          </section>
+        `;
+      }
+
+      function setActiveTab(nextTab) {
+        activeTraceTab = nextTab;
+        tabNodesEl.classList.toggle("active", nextTab === "nodes");
+        tabEvaluationEl.classList.toggle("active", nextTab === "evaluation");
+        tabPromptsEl.classList.toggle("active", nextTab === "prompts");
+        renderTrace();
+      }
+
+      function formatModes(modes) {
+        if (!modes || !modes.length) return "-";
+        return modes.join(", ");
+      }
+
+      function round2(value) {
+        return Math.round(value * 100) / 100;
+      }
+
+      function calcAverage(values) {
+        if (!values.length) return null;
+        return round2(values.reduce((sum, value) => sum + value, 0) / values.length);
+      }
+
+      function calcMedian(values) {
+        if (!values.length) return null;
+        const sorted = [...values].sort((a, b) => a - b);
+        const middle = Math.floor(sorted.length / 2);
+        if (sorted.length % 2 === 0) {
+          return round2((sorted[middle - 1] + sorted[middle]) / 2);
+        }
+        return sorted[middle];
+      }
+
+      function calcModes(values) {
+        if (!values.length) return [];
+        const counts = new Map();
+        for (const value of values) {
+          counts.set(value, (counts.get(value) || 0) + 1);
+        }
+        const maxCount = Math.max(...counts.values());
+        return [...counts.entries()]
+          .filter(([, count]) => count === maxCount)
+          .map(([value]) => value)
+          .sort((a, b) => a - b);
+      }
+
+      function summarizeEvaluationRounds(rounds) {
+        const successful = rounds.filter((item) => !item.error);
+        const settingScores = successful.map((item) => item.setting.score);
+        const stateScores = successful.map((item) => item.state.score);
+        const averageScores = successful.map((item) => item.averageScore);
+
+        return {
+          totalRounds: rounds.length,
+          successfulRounds: successful.length,
+          failedRounds: rounds.length - successful.length,
+          setting: {
+            average: calcAverage(settingScores),
+            median: calcMedian(settingScores),
+            modes: calcModes(settingScores),
+          },
+          state: {
+            average: calcAverage(stateScores),
+            median: calcMedian(stateScores),
+            modes: calcModes(stateScores),
+          },
+          overall: {
+            average: calcAverage(averageScores),
+            median: calcMedian(averageScores),
+            modes: calcModes(averageScores),
+          },
+        };
+      }
+
+      function buildEvaluationBatchState(detail, requestedRounds, completedRounds, inProgress) {
+        return {
+          summary: summarizeEvaluationRounds(detail),
+          detail,
+          requestedRounds,
+          completedRounds,
+          inProgress,
+        };
+      }
+
+      function formatEvaluationDetail(item) {
+        if (item.error) {
+          return `第${item.round}轮
+────────────────────
+错误
+${item.error}`;
+        }
+
+        return `第${item.round}轮
+────────────────────
+模拟用户
+${item.simulatedUserMessage}
+
+--------------------
+助手回复
+${item.assistantMessage}
+
+--------------------
+命中状态
+${formatRouteItem(item.routeBefore?.primary)}
+
+--------------------
+设定得分
+${item.setting.score}
+原因：${item.setting.reason}
+
+--------------------
+状态得分
+${item.state.score}
+原因：${item.state.reason}
+
+--------------------
+本轮均分
+${item.averageScore}`;
+      }
+
+      function getProgressText(targetId, fallbackTotal = evaluationRounds) {
+        if (!evaluationProgress || evaluationProgress.targetId !== targetId) return "";
+        return `已完成 ${evaluationProgress.completed}/${evaluationProgress.total || fallbackTotal} 轮`;
+      }
+
+      function currentPromptOverrides() {
+        return promptOverrides || promptDefaults || {
+          replyPrompt: "",
+          scorePrompt: "",
+          evaluationPrompt: "",
+          userSimulationPrompt: "",
+        };
+      }
+
+      function normalizeReplyPromptTemplate(template) {
+        return String(template ?? "")
+          .replaceAll("{{current_perception}}", "{{director_note_prompt}}")
+          .replaceAll("{{current_state}}", "{{state_key}}");
+      }
+
+      async function loadPromptDefaults() {
+        const response = await fetch("/api/prompt-defaults");
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            data.error?.message ||
+              data.error ||
+              (typeof data === "string" ? data : JSON.stringify(data))
+          );
+        }
+        promptDefaults = {
+          ...data,
+          replyPrompt: normalizeReplyPromptTemplate(data.replyPrompt),
+        };
+        promptOverrides = {
+          replyPrompt: promptDefaults.replyPrompt,
+          scorePrompt: promptDefaults.scorePrompt,
+          evaluationPrompt: promptDefaults.evaluationPrompt,
+          userSimulationPrompt: promptDefaults.userSimulationPrompt,
+        };
+      }
+
+      function renderPromptEditor() {
+        const prompts = currentPromptOverrides();
+        if (!promptDefaults || !promptOverrides) {
+          return `<div class="placeholder">提示词加载中...</div>`;
+        }
+
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">修改提示词</div>
+              <div class="node-meta">只在当前浏览器会话里生效</div>
+            </div>
+            <div class="node-body">
+              <div class="chip-row">
+                <span class="chip">聊天回复</span>
+                <span class="chip">Q1~Q12 打分</span>
+                <span class="chip">模拟用户</span>
+                <span class="chip">评测</span>
+              </div>
+              <div class="muted">修改后会自动用于下一次聊天或评测请求，刷新页面后恢复默认。</div>
+              <div>
+                <div class="label">聊天回复提示词</div>
+                <textarea id="promptReply" rows="18">${escapeHtml(prompts.replyPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-prompt="replyPrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">Q1~Q12 打分提示词</div>
+                <textarea id="promptScore" rows="16">${escapeHtml(prompts.scorePrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-prompt="scorePrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">模拟用户提示词</div>
+                <textarea id="promptUserSimulation" rows="12">${escapeHtml(
+                  prompts.userSimulationPrompt
+                )}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-prompt="userSimulationPrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">评测提示词</div>
+                <textarea id="promptEvaluation" rows="16">${escapeHtml(
+                  prompts.evaluationPrompt
+                )}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-prompt="evaluationPrompt">恢复默认</button>
+                  <button type="button" id="resetAllPrompts">全部恢复默认</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function bindPromptEditorEvents() {
+        if (!promptOverrides || !promptDefaults) return;
+
+        const fieldMap = {
+          promptReply: "replyPrompt",
+          promptScore: "scorePrompt",
+          promptUserSimulation: "userSimulationPrompt",
+          promptEvaluation: "evaluationPrompt",
+        };
+
+        Object.entries(fieldMap).forEach(([elementId, key]) => {
+          const field = document.getElementById(elementId);
+          if (!field) return;
+          field.addEventListener("input", (event) => {
+            promptOverrides[key] = event.target.value;
+          });
+        });
+
+        document.querySelectorAll("[data-reset-prompt]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-reset-prompt");
+            if (!key) return;
+            promptOverrides[key] = promptDefaults[key];
+            renderTrace();
+          });
+        });
+
+        const resetAllButton = document.getElementById("resetAllPrompts");
+        if (resetAllButton) {
+          resetAllButton.addEventListener("click", () => {
+            promptOverrides = {
+              replyPrompt: promptDefaults.replyPrompt,
+              scorePrompt: promptDefaults.scorePrompt,
+              evaluationPrompt: promptDefaults.evaluationPrompt,
+              userSimulationPrompt: promptDefaults.userSimulationPrompt,
+            };
+            renderTrace();
+          });
+        }
+      }
+
+      function renderEvaluationTab(active) {
+        const batch = active.evaluationBatch;
+        const isBatchLoading = evaluatingBatchRoundId === active.id;
+        const progressText = getProgressText(active.id, batch?.requestedRounds);
+
+        return [
+          `
+            <section class="node">
+              <div class="node-head">
+                <div class="node-title">评测控制台</div>
+                <div class="node-meta">${escapeHtml(progressText || "先选择轮数，再开始自动跑评测")}</div>
+              </div>
+              <div class="node-body">
+                <div class="control-row">
+                  <label for="evalRounds">评测轮数</label>
+                  <select id="evalRounds">
+                    <option value="1" ${evaluationRounds === 1 ? "selected" : ""}>1 轮</option>
+                    <option value="3" ${evaluationRounds === 3 ? "selected" : ""}>3 轮</option>
+                    <option value="5" ${evaluationRounds === 5 ? "selected" : ""}>5 轮</option>
+                    <option value="10" ${evaluationRounds === 10 ? "selected" : ""}>10 轮</option>
+                  </select>
+                  <button type="button" id="runEvalBatch" ${isBatchLoading ? "disabled" : ""}>
+                    ${isBatchLoading ? "评测中..." : "自动跑 10 轮评测"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          `,
+          nodeTemplate(
+            "测试 Tab",
+            progressText || "自动跑 10 轮评测并统计",
+            `
+              ${
+                batch
+                  ? `
+                      <div class="stats-grid">
+                        <div class="stats-card">
+                          <div class="title">设定得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.setting.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.setting.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.setting.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">状态得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.state.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.state.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.state.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">综合均分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.overall.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.overall.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.overall.modes))}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="label">${escapeHtml(
+                          batch.inProgress
+                            ? `评测明细（进行中，已完成 ${batch.completedRounds}/${batch.requestedRounds} 轮）`
+                            : `${batch.requestedRounds || batch.detail.length} 轮评测明细`
+                        )}</div>
+                        <div class="block"><pre>${escapeHtml(
+                          batch.detail
+                            .map((item) => formatEvaluationDetail(item))
+                            .join("\n\n========================================\n\n")
+                        )}</pre></div>
+                      </div>
+                    `
+                  : `<div class="muted">点击按钮后，系统会基于当前这一轮对话自动跑多轮评测；现在每完成一轮都会立即展示出来。</div>`
+              }
+            `
+          ),
+        ].join("");
+      }
+
+      function renderStandaloneEvaluationTab() {
+        const isBatchLoading = evaluatingBatchRoundId === "standalone";
+        const batch = standaloneEvaluationBatch;
+        const progressText = getProgressText("standalone", batch?.requestedRounds);
+
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">评测控制台</div>
+              <div class="node-meta">${escapeHtml(
+                progressText || "无须先发送消息，可直接从初始 IDT 自动模拟多轮对话"
+              )}</div>
+            </div>
+            <div class="node-body">
+              <div class="control-row">
+                <label for="evalRounds">评测轮数</label>
+                <select id="evalRounds">
+                  <option value="1" ${evaluationRounds === 1 ? "selected" : ""}>1 轮</option>
+                  <option value="3" ${evaluationRounds === 3 ? "selected" : ""}>3 轮</option>
+                  <option value="5" ${evaluationRounds === 5 ? "selected" : ""}>5 轮</option>
+                  <option value="10" ${evaluationRounds === 10 ? "selected" : ""}>10 轮</option>
+                </select>
+                <button type="button" id="runEvalBatch" ${isBatchLoading ? "disabled" : ""}>
+                  ${isBatchLoading ? "评测中..." : "自动跑 10 轮评测"}
+                </button>
+              </div>
+            </div>
+          </section>
+          ${
+            batch
+              ? `
+                  <section class="node">
+                    <div class="node-head">
+                      <div class="node-title">自动化评测结果</div>
+                      <div class="node-meta">${escapeHtml(
+                        progressText || "基于模拟用户与聊天助手连续对话汇总"
+                      )}</div>
+                    </div>
+                    <div class="node-body">
+                      <div class="stats-grid">
+                        <div class="stats-card">
+                          <div class="title">设定得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.setting.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.setting.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.setting.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">状态得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.state.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.state.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.state.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">综合均分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.overall.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.overall.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.overall.modes))}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="label">${escapeHtml(
+                          batch.inProgress
+                            ? `逐轮明细（进行中，已完成 ${batch.completedRounds}/${batch.requestedRounds} 轮）`
+                            : "逐轮明细"
+                        )}</div>
+                        <div class="block"><pre>${escapeHtml(
+                          batch.detail
+                            .map((item) => formatEvaluationDetail(item))
+                            .join("\n\n========================================\n\n")
+                        )}</pre></div>
+                      </div>
+                    </div>
+                  </section>
+                `
+              : ""
+          }
+        `;
+      }
+
+      function renderTrace() {
+        const singlePaneMode = activeTraceTab === "prompts" || activeTraceTab === "evaluation";
+        traceBodyEl.classList.toggle("prompts-mode", singlePaneMode);
+        traceMainEl.classList.toggle("prompts-mode", singlePaneMode);
+        traceSideEl.classList.toggle("hidden", singlePaneMode);
+
+        renderSummary();
+        renderHistory();
+
+        const active = latestTrace();
+        if (!active) {
+          traceMetaEl.textContent =
+            activeTraceTab === "prompts" ? "当前修改只在本次页面会话中生效" : "等待第一轮消息";
+          traceMainEl.innerHTML =
+            activeTraceTab === "prompts"
+              ? renderPromptEditor()
+              : activeTraceTab === "evaluation"
+              ? renderStandaloneEvaluationTab()
+              : `<div class="placeholder"></div>`;
+          const runEvalBatchBtn = document.getElementById("runEvalBatch");
+          if (runEvalBatchBtn) {
+            runEvalBatchBtn.addEventListener("click", () => runEvaluationBatch(null));
+          }
+          const evalRoundsEl = document.getElementById("evalRounds");
+          if (evalRoundsEl) {
+            evalRoundsEl.addEventListener("change", (event) => {
+              evaluationRounds = Number(event.target.value) || 10;
+            });
+          }
+          if (activeTraceTab === "prompts") {
+            bindPromptEditorEvents();
+          }
+          return;
+        }
+
+        traceMetaEl.textContent =
+          activeTraceTab === "prompts"
+            ? "当前修改只在本次页面会话中生效"
+            : `第 ${active.roundNo} 轮，总耗时 ${fmt(active.trace.requestLatencyMs)}ms`;
+
+        const scoring = active.trace.scoring;
+        const pad = active.trace.pad;
+        const idt = active.trace.idt;
+        const routes = active.trace.routes;
+        const routeText = routes.matches?.length
+          ? routes.matches.map((item) => formatRouteItem(item)).join(", ")
+          : routes.unmatched
+            ? "unmatched"
+            : "未命中";
+        const primaryRouteText = routes.primary ? formatRouteItem(routes.primary) : "-";
+        const primaryPerception = routes.primary?.perception || "-";
+        const stateRules = Object.values(STATE_LABELS)
+          .sort((a, b) => a.priority - b.priority)
+          .map(
+            (state) =>
+              `${state.label} (${state.priorityBand}, 优先级 ${state.priority}): ${state.rangeText}\n数值感知：${state.perception}`
+          )
+          .join("\n\n");
+
+        traceMainEl.innerHTML =
+          activeTraceTab === "prompts"
+            ? renderPromptEditor()
+            : activeTraceTab === "evaluation"
+              ? renderEvaluationTab(active)
+              : [
+          nodeTemplate(
+            "UserInput",
+            "本轮用户输入",
+            `
+              <div>
+                <div class="label">输入内容</div>
+                <div class="block"><pre>${escapeHtml(active.trace.userInput)}</pre></div>
+              </div>
+            `
+          ),
+          nodeTemplate(
+            "Q1~Q12 Scoring",
+            scoring.latencyMs ? `耗时 ${fmt(scoring.latencyMs)}ms` : "评分未完成",
+            `
+              ${scoring.error ? `<div class="danger">评分异常：${escapeHtml(scoring.error)}</div>` : ""}
+              <div>
+                <div class="label">评分输入</div>
+                <div class="block"><pre>${escapeHtml(scoring.input)}</pre></div>
+              </div>
+              <div>
+                <div class="label">Q1~Q12 输出</div>
+                ${renderQScores(scoring.qScores)}
+              </div>
+              <div>
+                <div class="label">情绪总结</div>
+                <div class="block"><pre>${escapeHtml(scoring.summary || "-")}</pre></div>
+              </div>
+              <div>
+                <div class="label">模型原始输出</div>
+                <div class="block"><pre>${escapeHtml(scoring.rawOutput || "-")}</pre></div>
+              </div>
+            `
+          ),
+          nodeTemplate(
+            "PAD",
+            pad ? "由 Q1~Q12 计算" : "缺少评分结果",
+            pad
+              ? `
+                  <div class="kv-grid">
+                    <div class="kv"><div class="k">P</div><div class="v">${fmt(pad.p)}</div></div>
+                    <div class="kv"><div class="k">A</div><div class="v">${fmt(pad.a)}</div></div>
+                    <div class="kv"><div class="k">D</div><div class="v">${fmt(pad.d)}</div></div>
+                  </div>
+                  <div class="block">
+                    <pre>P = ${escapeHtml(pad.formulas.p)}
+A = ${escapeHtml(pad.formulas.a)}
+D = ${escapeHtml(pad.formulas.d)}</pre>
+                  </div>
+                `
+              : `<div class="muted">评分失败时，本轮 PAD 不计算。</div>`
+          ),
+          nodeTemplate(
+            "IDT Delta",
+            idt.delta ? "根据 PAD 推导" : "未计算",
+            idt.delta
+              ? `
+                  <div class="kv-grid">
+                    <div class="kv"><div class="k">ΔI</div><div class="v">${fmt(idt.delta.i)}</div></div>
+                    <div class="kv"><div class="k">ΔD</div><div class="v">${fmt(idt.delta.d)}</div></div>
+                    <div class="kv"><div class="k">ΔT</div><div class="v">${fmt(idt.delta.t)}</div></div>
+                  </div>
+                  <div class="chip-row">
+                    <span class="chip">ki ${fmt(idt.delta.coefficients.ki)}</span>
+                    <span class="chip">kd ${fmt(idt.delta.coefficients.kd)}</span>
+                    <span class="chip">kt ${fmt(idt.delta.coefficients.kt)}</span>
+                  </div>
+                  <div class="block">
+                    <pre>${escapeHtml(idt.delta.formulas.i)}
+${escapeHtml(idt.delta.formulas.d)}
+${escapeHtml(idt.delta.formulas.t)}</pre>
+                  </div>
+                `
+              : `<div class="muted">本轮未生成 IDT 增量。</div>`
+          ),
+          nodeTemplate(
+            "IDT Next",
+            "上一轮与当前轮对比",
+            `
+              <div class="kv-grid">
+                <div class="kv"><div class="k">上一轮 IDT</div><div class="v">${fmt(idt.prev.i)} / ${fmt(idt.prev.d)} / ${fmt(idt.prev.t)}</div></div>
+                <div class="kv"><div class="k">当前 IDT</div><div class="v">${fmt(idt.next.i)} / ${fmt(idt.next.d)} / ${fmt(idt.next.t)}</div></div>
+              </div>
+            `
+          ),
+          nodeTemplate(
+            "State Routing",
+            "根据当前 IDT 命中状态区间",
+            `
+              <div class="chip-row">
+                ${
+                  routes.matches?.length
+                    ? routes.matches
+                        .map((item) => `<span class="chip">${escapeHtml(formatRouteItem(item))}</span>`)
+                        .join("")
+                    : `<span class="chip">${routes.unmatched ? "unmatched" : "未命中"}</span>`
+                }
+              </div>
+              <div class="block">
+                <pre>命中状态：${escapeHtml(routeText)}
+当前状态：${escapeHtml(primaryRouteText)}</pre>
+              </div>
+              <div>
+                <div class="label">当前状态的数值感知</div>
+                <div class="block"><pre>${escapeHtml(primaryPerception)}</pre></div>
+              </div>
+              <div>
+                <div class="label">状态区间规则</div>
+                <div class="block"><pre>${escapeHtml(stateRules)}</pre></div>
+              </div>
+            `
+          ),
+          nodeTemplate(
+            "Assistant Reply",
+            `耗时 ${fmt(active.assistant.latencyMs)}ms`,
+            `
+              <div>
+                <div class="label">最终系统提示词</div>
+                <div class="block"><pre>${escapeHtml(active.trace.reply.systemPrompt || "-")}</pre></div>
+              </div>
+              <div>
+                <div class="label">回复内容</div>
+                <div class="block"><pre>${escapeHtml(active.assistant.content || "(空回复)")}</pre></div>
+              </div>
+              <div>
+                <div class="label">模型思考</div>
+                <div class="block"><pre>${escapeHtml(active.assistant.reasoning || "-")}</pre></div>
+              </div>
+            `
+          ),
+        ].join("");
+
+        const runEvalBatchBtn = document.getElementById("runEvalBatch");
+        if (runEvalBatchBtn) {
+          runEvalBatchBtn.addEventListener("click", () => runEvaluationBatch(active.id));
+        }
+        const evalRoundsEl = document.getElementById("evalRounds");
+        if (evalRoundsEl) {
+          evalRoundsEl.addEventListener("change", (event) => {
+            evaluationRounds = Number(event.target.value) || 10;
+          });
+        }
+        if (activeTraceTab === "prompts") {
+          bindPromptEditorEvents();
+        }
+      }
+
+      async function runEvaluationBatch(roundId) {
+        const round = roundId == null ? null : roundTraces.find((item) => item.id === roundId);
+        const targetId = round ? roundId : "standalone";
+        const requestedRounds = evaluationRounds;
+        let workingMessages = round ? round.historySnapshot || history : [];
+        let workingIdt = round ? round.nextIdt || currentIdt : currentIdt;
+        let detail = [];
+
+        evaluatingBatchRoundId = targetId;
+        evaluationProgress = { targetId, completed: 0, total: requestedRounds };
+        const initialBatch = buildEvaluationBatchState(detail, requestedRounds, 0, true);
+        if (round) {
+          round.evaluationBatch = initialBatch;
+        } else {
+          standaloneEvaluationBatch = initialBatch;
+        }
+        renderTrace();
+        showErr("");
+
+        try {
+          for (let index = 0; index < requestedRounds; index += 1) {
+            const response = await fetch("/api/evaluate-round", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messages: workingMessages,
+                currentIdt: workingIdt,
+                round: index + 1,
+                promptOverrides: currentPromptOverrides(),
+              }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(
+                data.error?.message ||
+                  data.error ||
+                  (typeof data === "string" ? data : JSON.stringify(data))
+              );
+            }
+
+            detail.push(data.detail);
+            workingMessages = data.nextMessages || workingMessages;
+            workingIdt = data.nextIdt || workingIdt;
+            evaluationProgress = { targetId, completed: index + 1, total: requestedRounds };
+
+            const partialBatch = buildEvaluationBatchState(detail, requestedRounds, index + 1, true);
+            if (round) {
+              round.evaluationBatch = partialBatch;
+            } else {
+              standaloneEvaluationBatch = partialBatch;
+            }
+            renderTrace();
+          }
+
+          const finalBatch = buildEvaluationBatchState(detail, requestedRounds, requestedRounds, false);
+          if (round) {
+            round.evaluationBatch = finalBatch;
+          } else {
+            standaloneEvaluationBatch = finalBatch;
+          }
+        } catch (error) {
+          showErr(error instanceof Error ? error.message : String(error));
+        } finally {
+          evaluatingBatchRoundId = null;
+          evaluationProgress = null;
+          renderTrace();
+        }
+      }
+
+      async function send() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        showErr("");
+        inputEl.value = "";
+        history.push({ role: "user", content: text });
+        addBubble("user", text);
+        sendBtn.disabled = true;
+
+        const loading = addBubble("assistant", "...");
+
+        try {
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: history,
+              currentIdt,
+              promptOverrides: currentPromptOverrides(),
+            }),
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            loading.remove();
+            const msg =
+              data.error?.message ||
+              data.error ||
+              (typeof data === "string" ? data : JSON.stringify(data));
+            showErr(`请求失败 (${response.status}): ${msg}`);
+            return;
+          }
+
+          loading.remove();
+          history.push({ role: "assistant", content: data.assistant.content || "" });
+          addBubble(
+            "assistant",
+            data.assistant.content || "(空回复)",
+            `回复耗时 ${fmt(data.assistant.latencyMs)}ms`
+          );
+
+          currentIdt = data.nextIdt || currentIdt;
+          roundCounter += 1;
+          const round = {
+            id: Date.now() + roundCounter,
+            roundNo: roundCounter,
+            assistant: data.assistant,
+            trace: data.trace,
+            nextIdt: data.nextIdt || currentIdt,
+            historySnapshot: history.map((item) => ({ role: item.role, content: item.content })),
+          };
+          roundTraces.unshift(round);
+          selectedRoundId = round.id;
+          renderTrace();
+        } catch (error) {
+          loading.remove();
+          showErr(error instanceof Error ? error.message : String(error));
+        } finally {
+          sendBtn.disabled = false;
+          inputEl.focus();
+        }
+      }
+
+      sendBtn.addEventListener("click", send);
+      tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
+      tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
+      tabPromptsEl.addEventListener("click", () => setActiveTab("prompts"));
+      inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          send();
+        }
+      });
+
+      loadPromptDefaults()
+        .catch((error) => {
+          showErr(error instanceof Error ? error.message : String(error));
+        })
+        .finally(() => {
+          renderTrace();
+        });
+    </script>
+  </body>
+</html>

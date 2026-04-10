@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: doubao-chat-demo
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: ARK_API_KEY
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
