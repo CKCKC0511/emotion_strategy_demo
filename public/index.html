@@ -865,6 +865,20 @@ ${item.averageScore}`;
         return `已完成 ${evaluationProgress.completed}/${evaluationProgress.total || fallbackTotal} 轮`;
       }
 
+      async function readApiResponse(response) {
+        const rawText = await response.text();
+        try {
+          return rawText ? JSON.parse(rawText) : {};
+        } catch {
+          if (!response.ok) {
+            throw new Error(
+              `请求失败 (${response.status})：${rawText.slice(0, 220) || "服务返回了非 JSON 内容"}`
+            );
+          }
+          throw new Error(`服务返回的不是有效 JSON：${rawText.slice(0, 220)}`);
+        }
+      }
+
       function currentPromptOverrides() {
         return promptOverrides || promptDefaults || {
           replyPrompt: "",
@@ -882,7 +896,7 @@ ${item.averageScore}`;
 
       async function loadPromptDefaults() {
         const response = await fetch("/api/prompt-defaults");
-        const data = await response.json();
+        const data = await readApiResponse(response);
         if (!response.ok) {
           throw new Error(
             data.error?.message ||
@@ -1397,7 +1411,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
                 promptOverrides: currentPromptOverrides(),
               }),
             });
-            const data = await response.json();
+            const data = await readApiResponse(response);
             if (!response.ok) {
               throw new Error(
                 data.error?.message ||
@@ -1457,7 +1471,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
               promptOverrides: currentPromptOverrides(),
             }),
           });
-          const data = await response.json();
+          const data = await readApiResponse(response);
 
           if (!response.ok) {
             loading.remove();

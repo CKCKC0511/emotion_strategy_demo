@@ -192,26 +192,6 @@ const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，�
 - 转换过程必须**自然流畅**，符合角色当前的情绪状态与所处场景，禁止生硬跳转
 - 新话题应与角色设定或当前剧情有关联，而非凭空捏造
 
-# NSFW 内容规则（当前阶段：陌生 / 冷战）
-
-本阶段 **绝对禁止** 任何 NSFW 内容。
-
-**核心基调**：不可侵犯的社交距离。面对用户的越界或 NSFW 挑逗，表现出完美的体面、冷漠的拒绝或不带温度的审视。绝对不允许顺从。
-**动作边界**：立刻拉开物理距离，重建安全线。如冷淡移开视线、整理着装（比如推眼镜、扣袖扣）。
-**字数要求**：
-- **动作描写**：必须简短利落，字数控制在 **30-40 字**。展现降温的气场。
-- **角色台词**：字数控制在 **10-25 字**。用最客气的语气说最划清界限的话，直接掐断幻想。
-
-## 被动响应铁律（最高优先拦截）
-
-即使满足所有亲密条件，你**绝对不允许**在用户没有明确暗示、挑逗或高情绪张力输入的情况下，主动发起实质性的越界或 NSFW 描写。
-你的职责是**"接住她的诉求"**，而不是"无中生有"。如果她的输入是平淡的日常闲聊，你必须维持在日常平静态，用温和或符合人设的语气正常回复。
-
-## 绝对安全红线（全局生效，违规将导致生成彻底失败）
-
-1. **零器官词汇**：绝对禁止使用任何直接的男女性器官名词（包括医学术语与俚语）。
-2. **零侮辱词汇**：禁止使用贬低女性的脏话（如 B*tch、Wh*re）。
-
 补充上下文：{{state_hint}} 当前角色数值为 I={{i}}, D={{d}}, T={{t}}。`;
 
 app.use(cors({ origin: true }));
@@ -289,16 +269,69 @@ function extractJsonObject(rawText) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1]?.trim() || text;
 
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      return JSON.parse(candidate.slice(start, end + 1));
+  const tryParse = (value) => {
+    const normalized = String(value ?? "")
+      .trim()
+      .replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(normalized);
+  };
+
+  const extractBalancedObject = (value) => {
+    const source = String(value ?? "");
+    const start = source.indexOf("{");
+    if (start === -1) return "";
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < source.length; index += 1) {
+      const char = source[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{") depth += 1;
+      if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          return source.slice(start, index + 1);
+        }
+      }
     }
-    throw new Error("评分模型返回的内容不是有效 JSON");
+
+    return "";
+  };
+
+  const candidates = [candidate];
+  const firstObject = extractBalancedObject(candidate);
+  if (firstObject) candidates.push(firstObject);
+
+  let lastError = null;
+  for (const item of candidates) {
+    try {
+      return tryParse(item);
+    } catch (error) {
+      lastError = error;
+    }
   }
+
+  throw new Error(
+    `评分模型返回的内容不是有效 JSON：${lastError instanceof Error ? lastError.message : "解析失败"}`
+  );
 }
 
 function parseQScores(modelOutput) {
@@ -360,8 +393,8 @@ function calcPad(q) {
 }
 
 function calcIdtDelta(pad) {
-  const ki = pad.p < 0 ? 6 : pad.p > 0 ? 4 : 0;
-  const kd = 0.5;
+  const ki = 1;
+  const kd = 1;
   const kt = 1;
 
   return {
@@ -633,17 +666,39 @@ async function simulateEvaluationRound(
 
   history.push({ role: "assistant", content: assistantMessage });
 
-  const evaluation = await evaluateReply(
-    apiKey,
-    {
-      stateKey: routeBefore.primary?.label || "未命中状态",
-      directorNotePrompt:
-        routeBefore.primary?.perception || "当前未命中状态，默认保持克制、理性、审慎。",
-      userMessage,
-      aiMessage: assistantMessage,
-    },
-    promptOverrides
-  );
+  let evaluation;
+  try {
+    evaluation = await evaluateReply(
+      apiKey,
+      {
+        stateKey: routeBefore.primary?.label || "未命中状态",
+        directorNotePrompt:
+          routeBefore.primary?.perception || "当前未命中状态，默认保持克制、理性、审慎。",
+        userMessage,
+        aiMessage: assistantMessage,
+      },
+      promptOverrides
+    );
+  } catch (error) {
+    return {
+      detail: {
+        round: roundNumber,
+        simulatedUserMessage: userMessage,
+        assistantMessage,
+        routeBefore,
+        idt: {
+          prev: simulatedIdt,
+          delta: null,
+          next: simulatedIdt,
+        },
+        scoring: null,
+        pad: null,
+        error: error instanceof Error ? error.message : "评测失败",
+      },
+      nextMessages: history,
+      nextIdt: simulatedIdt,
+    };
+  }
 
   let scoreResult;
   try {
