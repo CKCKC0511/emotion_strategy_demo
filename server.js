@@ -124,8 +124,8 @@ const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，�
 
 # Role
 角色设定
-人物与关系内核仅以下文 Part 1、Part 2 为准；
-# Part 1: 角色基底 (Base Profile)
+人物与关系内核仅以下文内容为准；
+# 角色基底 (Base Profile)
 【你的身份与性格】：{{base_profile}}
 
 【情绪策略】：{{director_note_prompt}}
@@ -281,16 +281,15 @@ step1: 根据角色设定{{cha_set}}以及以下4个AI状态的含义，定义�
 4. 极度羁绊/病娇: I极高(>85)，D极低(<20)，T极高(>85)
 
 ## 任务三
-根据优先级规则，定义任务二中4个状态的优先级，以确保任意IDT数值都能有对应状态承接，P值越小，优先级越高，输出内容是五个状态及对应的优先级
+根据优先级规则，定义任务二中4个状态的优先级，以确保任意IDT数值都能有对应状态承接，P值越小，优先级越高，输出内容是4个状态及对应的优先级
 优先级规则：
 {
-    P0 (最高): 【失控破防 / 极度羁绊】
-    判定原则：当张力 (T) 突破临界点 (>85) 时，角色的逻辑外壳必须被情感洪水淹没。
-    P1 (高): 【试探推拉】
-    判定原则：在具有一定信任基础下，产生的良性互动波动。
-    P2 (低): 【日常兜底】
-    判定原则：作为所有常规对话的拦截层，确保角色的人设底色不崩塌。
+    P1 (最高优 / 极低概率): 触发条件极其苛刻（如：必须 T>90 且 D<10），或者表现出了人设的极端反转（如高冷变卑微）。
+    P2 (高优 / 较低概率): 包含至少一个明显的极端限制（如：仅限特定前置剧情触发，或张力 T>80）。
+    P3 (普通 / 大概率): 条件非常宽泛（如：只要 T>60 即可）。
+    P4 (最低优 / 必然事件): 没有任何条件限制的兜底日常。
 }
+如果任意 IDT 数值没有落入其他状态区间，必须自动归入“日常兜底”。
 
 ## 最终输出要求
 请只返回 JSON，不要 markdown，不要代码块，不要额外解释。JSON 结构必须如下：
@@ -640,6 +639,16 @@ function calcNextIdt(prev, delta) {
   };
 }
 
+function toRouteStateMeta(state) {
+  return {
+    code: state.code,
+    label: state.label,
+    priorityBand: state.priorityBand,
+    priority: state.priority,
+    perception: state.perception,
+  };
+}
+
 function matchStates(idt, stateDefinitions = STATE_DEFINITIONS) {
   const matches = stateDefinitions.filter((state) => {
     const range = state.range;
@@ -651,16 +660,13 @@ function matchStates(idt, stateDefinitions = STATE_DEFINITIONS) {
       idt.t >= range.tMin &&
       idt.t <= range.tMax
     );
-  }).map((state) => ({
-    code: state.code,
-    label: state.label,
-    priorityBand: state.priorityBand,
-    priority: state.priority,
-    perception: state.perception,
-  }));
+  }).map((state) => toRouteStateMeta(state));
+  const fallbackState = stateDefinitions.find((state) => state.code === "dailyFallback");
+  const effectiveMatches =
+    matches.length === 0 && fallbackState ? [toRouteStateMeta(fallbackState)] : matches;
 
   const primaryMatch =
-    [...matches].sort((a, b) => {
+    [...effectiveMatches].sort((a, b) => {
       if (a.priority !== b.priority) {
         return a.priority - b.priority;
       }
@@ -671,21 +677,24 @@ function matchStates(idt, stateDefinitions = STATE_DEFINITIONS) {
     })[0] || null;
 
   return {
-    matches,
+    matches: effectiveMatches,
     primary: primaryMatch,
     unmatched: matches.length === 0,
+    fallbackApplied: matches.length === 0 && Boolean(fallbackState),
   };
 }
 
 function buildReplyMessages(history, currentIdt, routeInfo, promptOverrides) {
-  const currentState = routeInfo.primary?.label || "未命中状态";
+  const currentState = routeInfo.primary?.label || "日常兜底";
   const currentPerception =
-    routeInfo.primary?.perception || "当前未命中预设状态区间，请保持克制、理性、审慎的观察姿态。";
-  const stateHint = routeInfo.matches.length
+    routeInfo.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。";
+  const stateHint = routeInfo.fallbackApplied
+    ? `当前未命中其他预设状态区间，已自动回退至日常兜底(${routeInfo.primary?.priorityBand || "P4"})。`
+    : routeInfo.matches.length
     ? `当前命中状态：${routeInfo.matches
         .map((item) => `${item.label}(${item.priorityBand})`)
         .join(", ")}。当前优先状态：${routeInfo.primary?.label || "无"}。`
-    : "当前没有命中任何预设状态。";
+    : "当前未命中其他状态区间，已自动回退到日常兜底。";
   const systemPrompt = applyTemplate(promptOverrides.replyPrompt, {
     base_profile: BASE_PROFILE,
     director_note_prompt: currentPerception,
@@ -715,10 +724,10 @@ function buildEvaluationMessages(
   promptOverrides
 ) {
   const prompt = promptOverrides.evaluationPrompt.replace("{{base_prompt}}", BASE_PROFILE)
-    .replace("{{state_key}}", stateKey || "未命中状态")
+    .replace("{{state_key}}", stateKey || "日常兜底")
     .replace(
       "{{director_note_prompt}}",
-      directorNotePrompt || "当前未命中状态，默认保持克制、理性、审慎。"
+      directorNotePrompt || "当前未命中其他状态区间，自动回退到日常兜底。"
     )
     .replace("{{user_message}}", userMessage || "")
     .replace("{{AI_message}}", aiMessage || "");
@@ -738,9 +747,9 @@ function buildUserSimulationMessages(history, currentIdt, routeInfo, promptOverr
 
   const stateText = routeInfo.primary
     ? `${routeInfo.primary.label} / ${routeInfo.primary.priorityBand}`
-    : "未命中状态";
+    : "日常兜底 / P4";
   const perceptionText =
-    routeInfo.primary?.perception || "当前状态未命中，整体保持中性观察。";
+    routeInfo.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。";
 
   return [
     { role: "system", content: promptOverrides.userSimulationPrompt },
@@ -943,9 +952,9 @@ async function simulateEvaluationRound(
     evaluateReply(
       apiKey,
       {
-        stateKey: routeBefore.primary?.label || "未命中状态",
+        stateKey: routeBefore.primary?.label || "日常兜底",
         directorNotePrompt:
-          routeBefore.primary?.perception || "当前未命中状态，默认保持克制、理性、审慎。",
+          routeBefore.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。",
         userMessage,
         aiMessage: assistantMessage,
       },
@@ -1171,13 +1180,11 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const reply = replyResult.value;
-  const replyState = preRoute.primary || {
-    code: "unmatched",
-    label: "未命中状态",
-    priorityBand: "-",
-    priority: 99,
-    perception: "当前未命中状态，默认保持克制、理性、审慎。",
-  };
+  const replyState =
+    preRoute.primary ||
+    toRouteStateMeta(
+      stateDefinitions.find((state) => state.code === "dailyFallback") || STATE_DEFINITIONS[3]
+    );
   let scoring;
   let pad = null;
   let idtDelta = null;
