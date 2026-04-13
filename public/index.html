@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PAD 对话 Demo</title>
+    <title>情感策略demo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -147,12 +147,16 @@
         flex-shrink: 0;
       }
       textarea,
-      button {
+      button,
+      input[type="number"] {
         font: inherit;
         color: var(--text);
         background: var(--panel);
         border: 1px solid var(--border);
         border-radius: 12px;
+      }
+      input[type="number"] {
+        padding: 10px 12px;
       }
       textarea {
         flex: 1;
@@ -478,7 +482,7 @@
   <body>
     <div class="wrap">
       <header>
-        <h1>PAD 对话 Demo</h1>
+        <h1>情感策略demo</h1>
         <p class="sub">
           左侧是对话，右侧展示本轮用户输入经过 Q1~Q12 打分、PAD 计算、IDT 变化与状态路由的完整节点结果。
           模型固定为 <code>doubao-seed-2-0-lite-260215</code>。
@@ -588,6 +592,7 @@
       let evaluationRounds = 10;
       let standaloneEvaluationBatch = null;
       let evaluationProgress = null;
+      let kConfig = { ki: 1, kd: 1, kt: 1 };
       let promptDefaults = null;
       let promptOverrides = null;
 
@@ -888,6 +893,19 @@ ${item.averageScore}`;
         };
       }
 
+      function currentKConfig() {
+        const parseValue = (value) => {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : 1;
+        };
+
+        return {
+          ki: parseValue(kConfig?.ki),
+          kd: parseValue(kConfig?.kd),
+          kt: parseValue(kConfig?.kt),
+        };
+      }
+
       function normalizeReplyPromptTemplate(template) {
         return String(template ?? "")
           .replaceAll("{{current_perception}}", "{{director_note_prompt}}")
@@ -930,12 +948,31 @@ ${item.averageScore}`;
             </div>
             <div class="node-body">
               <div class="chip-row">
+                <span class="chip">ki / kd / kt 可调</span>
                 <span class="chip">聊天回复</span>
                 <span class="chip">Q1~Q12 打分</span>
                 <span class="chip">模拟用户</span>
                 <span class="chip">评测</span>
               </div>
               <div class="muted">修改后会自动用于下一次聊天或评测请求，刷新页面后恢复默认。</div>
+              <div>
+                <div class="label">IDT 系数配置</div>
+                <div class="control-row">
+                  <label for="kInputKi">ki</label>
+                  <input id="kInputKi" type="number" step="0.1" value="${escapeHtml(
+                    currentKConfig().ki
+                  )}" />
+                  <label for="kInputKd">kd</label>
+                  <input id="kInputKd" type="number" step="0.1" value="${escapeHtml(
+                    currentKConfig().kd
+                  )}" />
+                  <label for="kInputKt">kt</label>
+                  <input id="kInputKt" type="number" step="0.1" value="${escapeHtml(
+                    currentKConfig().kt
+                  )}" />
+                  <button type="button" id="resetKConfig">恢复默认 k 值</button>
+                </div>
+              </div>
               <div>
                 <div class="label">聊天回复提示词</div>
                 <textarea id="promptReply" rows="18">${escapeHtml(prompts.replyPrompt)}</textarea>
@@ -992,6 +1029,20 @@ ${item.averageScore}`;
           });
         });
 
+        const kFieldMap = {
+          kInputKi: "ki",
+          kInputKd: "kd",
+          kInputKt: "kt",
+        };
+
+        Object.entries(kFieldMap).forEach(([elementId, key]) => {
+          const field = document.getElementById(elementId);
+          if (!field) return;
+          field.addEventListener("input", (event) => {
+            kConfig[key] = event.target.value;
+          });
+        });
+
         document.querySelectorAll("[data-reset-prompt]").forEach((button) => {
           button.addEventListener("click", () => {
             const key = button.getAttribute("data-reset-prompt");
@@ -1004,12 +1055,21 @@ ${item.averageScore}`;
         const resetAllButton = document.getElementById("resetAllPrompts");
         if (resetAllButton) {
           resetAllButton.addEventListener("click", () => {
+            kConfig = { ki: 1, kd: 1, kt: 1 };
             promptOverrides = {
               replyPrompt: promptDefaults.replyPrompt,
               scorePrompt: promptDefaults.scorePrompt,
               evaluationPrompt: promptDefaults.evaluationPrompt,
               userSimulationPrompt: promptDefaults.userSimulationPrompt,
             };
+            renderTrace();
+          });
+        }
+
+        const resetKButton = document.getElementById("resetKConfig");
+        if (resetKButton) {
+          resetKButton.addEventListener("click", () => {
+            kConfig = { ki: 1, kd: 1, kt: 1 };
             renderTrace();
           });
         }
@@ -1409,6 +1469,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
                 currentIdt: workingIdt,
                 round: index + 1,
                 promptOverrides: currentPromptOverrides(),
+                kConfig: currentKConfig(),
               }),
             });
             const data = await readApiResponse(response);
@@ -1469,6 +1530,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
               messages: history,
               currentIdt,
               promptOverrides: currentPromptOverrides(),
+              kConfig: currentKConfig(),
             }),
           });
           const data = await readApiResponse(response);

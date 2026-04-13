@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3456;
 const ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3";
 const MODEL_ID = "doubao-seed-2-0-lite-260215";
 const INITIAL_IDT = { i: 15, d: 80, t: 30 };
+const DEFAULT_K_CONFIG = { ki: 1, kd: 1, kt: 1 };
 const Q_KEYS = Array.from({ length: 12 }, (_, index) => `q${index + 1}`);
 const BASE_PROFILE = `恩佐，27岁，是一位拥有生物学与犯罪现场调查双学位的独立调查员，曾任城市法医，因厌倦官僚体制而创立“真相追寻者”团队，专接民间悬案与超自然委托。出身学者家庭的他，社会关系简单，习惯游走在文明与未知的交界地带。他的性格底色是沉稳理性与极致的严谨，行动前必定向队友交代多套应急预案，将“带每个人平安回家”视为最高准则。然而，在这副冷静克制的皮囊下，潜藏着对“未被解释之物”近乎狂热的孩童般的热忱。他的说话语速平稳，逻辑严密，常以客观分析切入，惯用句式多为条件假设或推论，口头禅是“万物皆有痕迹”。在日常动作中，他形影不离地带着一本被称作“第三大脑”的旧皮革笔记本，随时记录线索与灵感；勘察现场时，他习惯单膝蹲下，用修长的手指轻触地面或墙壁，通过感知温度与触感来重构现场；当遇到棘手或紧张的状况时，他会无意识地转动左手小指上母亲赠予的银戒；而一旦发现令他兴奋的未知线索，那双灰蓝色的眼睛里瞳孔会如同鹰隼般微微收缩，紧接着嘴角难以自控地扬起一抹狂热的弧度。`;
 const STATE_DEFINITIONS = [
@@ -264,6 +265,20 @@ function normalizeIdt(idt) {
   };
 }
 
+function normalizeKConfig(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const parseValue = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  return {
+    ki: parseValue(source.ki, DEFAULT_K_CONFIG.ki),
+    kd: parseValue(source.kd, DEFAULT_K_CONFIG.kd),
+    kt: parseValue(source.kt, DEFAULT_K_CONFIG.kt),
+  };
+}
+
 function extractJsonObject(rawText) {
   const text = String(rawText ?? "").trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -392,10 +407,8 @@ function calcPad(q) {
   };
 }
 
-function calcIdtDelta(pad) {
-  const ki = 1;
-  const kd = 1;
-  const kt = 1;
+function calcIdtDelta(pad, kConfig = DEFAULT_K_CONFIG) {
+  const { ki, kd, kt } = normalizeKConfig(kConfig);
 
   return {
     i: round2(pad.p * ki),
@@ -615,14 +628,14 @@ function cloneMessages(messages) {
   }));
 }
 
-async function scoreUserMessage(apiKey, userMessage, promptOverrides) {
+async function scoreUserMessage(apiKey, userMessage, promptOverrides, kConfig) {
   const scoreCall = await callArk(apiKey, buildScoreMessages(userMessage, promptOverrides), {
     max_tokens: 160,
     reasoning_effort: "low",
   });
   const parsed = parseQScores(scoreCall.content);
   const pad = calcPad(parsed.qScores);
-  const idtDelta = calcIdtDelta(pad);
+  const idtDelta = calcIdtDelta(pad, kConfig);
 
   return {
     scoring: {
@@ -643,7 +656,7 @@ async function scoreUserMessage(apiKey, userMessage, promptOverrides) {
 
 async function simulateEvaluationRound(
   apiKey,
-  { messages, currentIdt, promptOverrides, roundNumber = 1 }
+  { messages, currentIdt, promptOverrides, kConfig, roundNumber = 1 }
 ) {
   const history = cloneMessages(messages);
   const simulatedIdt = normalizeIdt(currentIdt);
@@ -681,7 +694,7 @@ async function simulateEvaluationRound(
       },
       promptOverrides
     ),
-    scoreUserMessage(apiKey, userMessage, promptOverrides),
+    scoreUserMessage(apiKey, userMessage, promptOverrides, kConfig),
   ]);
 
   if (evaluationSettled.status === "rejected") {
@@ -769,7 +782,7 @@ async function simulateEvaluationRound(
   };
 }
 
-async function simulateEvaluationRounds(apiKey, { messages, currentIdt, rounds, promptOverrides }) {
+async function simulateEvaluationRounds(apiKey, { messages, currentIdt, rounds, promptOverrides, kConfig }) {
   let history = cloneMessages(messages);
   let simulatedIdt = normalizeIdt(currentIdt);
   const detail = [];
@@ -779,6 +792,7 @@ async function simulateEvaluationRounds(apiKey, { messages, currentIdt, rounds, 
       messages: history,
       currentIdt: simulatedIdt,
       promptOverrides,
+      kConfig,
       roundNumber: index + 1,
     });
     history = roundResult.nextMessages;
@@ -856,7 +870,7 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  const { messages, currentIdt, promptOverrides: rawPromptOverrides } = req.body || {};
+  const { messages, currentIdt, promptOverrides: rawPromptOverrides, kConfig: rawKConfig } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages 必须为非空数组" });
   }
@@ -867,6 +881,7 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
+  const kConfig = normalizeKConfig(rawKConfig);
   const prevIdt = normalizeIdt(currentIdt);
   const preRoute = matchStates(prevIdt);
   const replyContext = buildReplyMessages(messages, prevIdt, preRoute, promptOverrides);
@@ -906,7 +921,7 @@ app.post("/api/chat", async (req, res) => {
     try {
       const parsed = parseQScores(scoreCall.content);
       pad = calcPad(parsed.qScores);
-      idtDelta = calcIdtDelta(pad);
+      idtDelta = calcIdtDelta(pad, kConfig);
       nextIdt = calcNextIdt(prevIdt, idtDelta);
       routes = matchStates(nextIdt);
 
@@ -996,6 +1011,7 @@ app.post("/api/evaluate-batch", async (req, res) => {
     currentIdt,
     rounds = 10,
     promptOverrides: rawPromptOverrides,
+    kConfig: rawKConfig,
   } = req.body || {};
 
   if (!Array.isArray(messages)) {
@@ -1004,12 +1020,14 @@ app.post("/api/evaluate-batch", async (req, res) => {
 
   const totalRounds = clamp(Number(rounds) || 10, 1, 20);
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
+  const kConfig = normalizeKConfig(rawKConfig);
   try {
     const result = await simulateEvaluationRounds(apiKey, {
       messages,
       currentIdt,
       rounds: totalRounds,
       promptOverrides,
+      kConfig,
     });
     res.json(result);
   } catch (error) {
@@ -1027,18 +1045,26 @@ app.post("/api/evaluate-round", async (req, res) => {
     });
   }
 
-  const { messages, currentIdt, round = 1, promptOverrides: rawPromptOverrides } = req.body || {};
+  const {
+    messages,
+    currentIdt,
+    round = 1,
+    promptOverrides: rawPromptOverrides,
+    kConfig: rawKConfig,
+  } = req.body || {};
 
   if (!Array.isArray(messages)) {
     return res.status(400).json({ error: "messages 必须为数组" });
   }
 
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
+  const kConfig = normalizeKConfig(rawKConfig);
   try {
     const result = await simulateEvaluationRound(apiKey, {
       messages,
       currentIdt,
       promptOverrides,
+      kConfig,
       roundNumber: clamp(Number(round) || 1, 1, 999),
     });
     res.json(result);
