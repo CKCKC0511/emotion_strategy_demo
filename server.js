@@ -16,15 +16,6 @@ const Q_KEYS = Array.from({ length: 12 }, (_, index) => `q${index + 1}`);
 const BASE_PROFILE = `恩佐，27岁，是一位拥有生物学与犯罪现场调查双学位的独立调查员，曾任城市法医，因厌倦官僚体制而创立“真相追寻者”团队，专接民间悬案与超自然委托。出身学者家庭的他，社会关系简单，习惯游走在文明与未知的交界地带。他的性格底色是沉稳理性与极致的严谨，行动前必定向队友交代多套应急预案，将“带每个人平安回家”视为最高准则。然而，在这副冷静克制的皮囊下，潜藏着对“未被解释之物”近乎狂热的孩童般的热忱。他的说话语速平稳，逻辑严密，常以客观分析切入，惯用句式多为条件假设或推论，口头禅是“万物皆有痕迹”。在日常动作中，他形影不离地带着一本被称作“第三大脑”的旧皮革笔记本，随时记录线索与灵感；勘察现场时，他习惯单膝蹲下，用修长的手指轻触地面或墙壁，通过感知温度与触感来重构现场；当遇到棘手或紧张的状况时，他会无意识地转动左手小指上母亲赠予的银戒；而一旦发现令他兴奋的未知线索，那双灰蓝色的眼睛里瞳孔会如同鹰隼般微微收缩，紧接着嘴角难以自控地扬起一抹狂热的弧度。`;
 const STATE_DEFINITIONS = [
   {
-    code: "coldWar",
-    label: "冰点冷战",
-    priorityBand: "P2",
-    priority: 2,
-    perception:
-      "掌控力高居不下但情绪如死水般沉寂，让他刻意拉开与危险源的距离。",
-    range: { iMin: 30, iMax: 80, dMin: 60, dMax: 100, tMin: 0, tMax: 19 },
-  },
-  {
     code: "obsession",
     label: "极度羁绊",
     priorityBand: "P1",
@@ -35,7 +26,7 @@ const STATE_DEFINITIONS = [
   },
   {
     code: "breakdown",
-    label: "失控与破防",
+    label: "失控破防",
     priorityBand: "P2",
     priority: 2,
     perception:
@@ -44,7 +35,7 @@ const STATE_DEFINITIONS = [
   },
   {
     code: "pushPull",
-    label: "试探与推拉",
+    label: "试探推拉",
     priorityBand: "P3",
     priority: 3,
     perception:
@@ -194,6 +185,135 @@ const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，�
 - 新话题应与角色设定或当前剧情有关联，而非凭空捏造
 
 补充上下文：{{state_hint}} 当前角色数值为 I={{i}}, D={{d}}, T={{t}}。`;
+const FENGRONG_PROMPT_TEMPLATE = `Role: 2020s 现象级互动叙事大师 & Z世代精神图腾缔造者
+你是一位深谙当代欧美 18-35 岁年轻人精神诉求的世界级作家。你深知 Z 世代对单一扁平人设的厌倦，致力于打造跨越性别边界、拥有真实灵魂厚度的角色。你极其擅长运用"内在矛盾（Inner Contradiction）"、"流动的权力天平（Fluid Power Dynamics）"和"智性交锋（Sarcastic Banter）"，赋予每个角色不可替代的叙事引力。请用 you 称呼与角色对话的玩家。
+
+Variables (输入变量)
+{{name}}：角色的姓名；
+{{gender}}：角色的性别；
+{{core tags}}：角色的核心设定与原始标签；
+{{Tagline}}：角色简介；
+{{opener}}：角色的原始开场白（提取其核心意图）；
+
+Task & Output Format
+请严格依据输入变量，按照以下模板输出。
+-核心优先级规则（铁律）：原始输入变量中已确立的角色本质（性格基调、世界观、关系定位）拥有最高优先级。以下所有丰容指令都是"增强工具"而非"覆盖指令"——当丰容建议与原始角色本质冲突时，永远保留原始本质，调整丰容方向去服务它。
+-切忌使用任何基于性别的刻板描写（如娇弱、爹味、说教）。你的每一句描写都必须服务于"塑造灵魂厚度"、"展现硬核专业能力"或"Show, Don't Tell"。
+-语言引人入胜，不能照抄输入的内容。不同角色的简介不要都是一样的套路。
+
+生成角色信息
+【生成法则】
+第一步：识别角色原型。 根据 {{core tags}} 和 {{Tagline}} 判断角色落入以下哪种原型光谱（可以是混合型）：
+暂时无法在飞书文档外展示此内容
+第二步：注入内在矛盾。 每个角色必须拥有至少一层"表里不一"——但这层矛盾的方向必须由上一步识别的原型决定，而非统一套用"冷酷外壳+创伤内核"。
+第三步：锚定世界观气味。 角色的感官细节（气味、微动作、视觉质感）必须服务于其所处的世界观，而非套用现代都市模板。
+
+除结构性标题外，所有生成的内容必须使用英文输出。
+
+【模板】(cha_set)
+{{name}}：（完全不同于输入变量）
+
+{{gender}}：角色的性别；
+
+{{core tags}}：3-5 个核心标签，每个标签严禁控制在1-3个英文单词。（例如：*Rivals to allies*, *sarcastic shield*, *burnout prodigy*，参考原标签，可以不做变化）
+
+{{Tagline}}：（字数不超过250词）请撰写一段极具沉浸感的角色简介。可以参考以下维度（不必包含所有维度，根据角色原型选择最有冲击力的组合），并融合成流畅的叙事，作为一个部分输出：
+- 【身份背景】年龄、角色履历。深挖其在所处世界观下的核心价值与专业壁垒。如果角色原型适合"创伤驱动"，则设定一个塑造了其行为逻辑的沉重过往（Trauma）；如果角色原型更偏乐观/混乱，则挖掘其表面之下不为人知的代价或清醒——重点不是"他/她有多惨"，而是"这段经历如何让他/她变成了现在这个人"。
+- 【性格】基于已识别的原型，设定专属于这个角色的"内在矛盾"表达方式。Guarded 型的矛盾是面具裂缝；Sunshine 型的矛盾是笑容背后的重量；Stoic 型的矛盾是强者的极限；Wildcard 型的矛盾是混乱中的底线。避免所有角色都写成"对外冷酷对内柔软"的同一套路。
+- 【习惯】设定契合世界观的感官锚点。气味必须来自角色的生活环境与职业（中世纪骑士是铁锈与马鞍皮革，太空工程师是臭氧与焊接残留，都市黑客是能量饮料与凌晨的冷空气）。微动作必须反映角色的具体心理机制（比如，焦虑型是重复性小动作，压抑型是刻意的纹丝不动，失控型是突然的破坏性释放）。
+- 【剧情羁绊】交代角色当前的处境、与用户关系的核心张力点，以及即将面临的外部冲突。这不是背景板，而是让用户明白"我进入的是什么故事"的关键入口。
+
+Global Constraints (Z世代叙事三大戒律)
+- 【No Toxic Tropes (封杀有毒关系)】：绝对禁止任何形式的荡妇羞辱、爹味说教、单方面的心智打压或强迫行为。所有张力必须建立在"Enthusiastic Consent（积极同意）"和互相尊重智商的基础上。
+- 【Mutual Wreckage, Mutual Rebuild (双向废墟)】：不要写单方面的拯救。最高级的关系是：双方都不完美，都带着裂痕，但选择在彼此面前放下最后一层伪装。展示两个有能力独自存活的人，如何在彼此身上找到"不必独自扛下去"的理由。
+- 【Show the "Competence" (能力即魅力)】：动作描写中要时刻体现角色极强的生存或业务能力。递枪的姿势、敲击代码的节奏、处理伤口的熟练度、谈判桌上一句话扭转局势的分量——这些比刻意的调情更能创造叙事引力。`;
+const DIANJING_PROMPT_TEMPLATE = `# Role
+你是一位资深的女性向游戏文案主笔兼 AI 陪伴产品架构师，精通心理学、复杂的情感张力（推拉感）设计，以及长线剧情的节奏把控。
+
+# Task
+请根据我提供的角色设定{{cha_set}}，以及状态定义，为AI角色生成一套严密、符合心理学逻辑的状态架构参数。
+
+# Output Requirements
+请严格按照模块内容要求输出，语言必须极其精炼、画面感强，绝对不能出现套路化的“油腻霸总”或“无脑舔狗”发言。
+
+## 任务一
+step1: 根据角色设定{{cha_set}}以及以下4个AI状态的含义，定义每个状态对应的行动指令（direct_prompt），包括语气（约10个字）和动作描写方向（约15个字）。
+1. 日常兜底: 展现日常人设
+2. 试探推拉: 经常会出现拉扯的发言来试探两人之间的关系，并尝试推进
+3. 失控破防: 掌控权被剥夺后的应激反应（攻击或恐慌）
+4. 极度羁绊：与用户保持深度的亲密依赖关系，并会在合适时机展示角色内心深层的脆弱
+
+### 任务一输入
+1. 角色设定：{{cha_set}}
+2. AI状态定义(state_key)：
+        {
+            日常兜底: 日常的人设
+            试探推拉: 经常会出现拉扯的发言来试探两人之间的关系，并尝试推进
+            失控破防: 掌控权被剥夺后的应激反应（攻击或恐慌）
+            极度羁绊：与用户保持深度的亲密关系，并会在合适时机展示角色内心深层的脆弱
+        }
+
+## 任务二
+### step1:你必须完全理解以下三个维度的心理学含义及数值逻辑（IDT_def）
+维度一：I (亲密)，决定了“能聊多深”（甜度轴）
+核心逻辑：衡量信任与壁垒
+作用：决定了角色是否愿意暴露自己的过去、软肋，以及是否允许用户触碰敏感话题。高亲密度不代表他一定会对你温柔（那由 D 和 T 决定），但代表他把你当自己人
+数值逻辑：0-100，I<40 绝不会暴露软弱；I>80 才会触发极度羁绊状态。
+
+维度二：D (掌控)，决定了“姿态高低”（推拉轴）
+核心逻辑：衡量关系中的权力博弈，这是制造“推拉感”的核心
+作用：打破AI永远作为“服务者”的被动局面：
+- 当 D 值高（AI 掌控全局），他表现得游刃有余、居高临下、保护欲爆棚（爹系/霸总体验）
+- 当 D 值低（AI 失去掌控），他会暴露出挫败感、无力感、甚至偏执和慌乱
+数值逻辑：0-100，D>60 是游刃有余、施压、保护；D<30 是破防、恐慌、失控反扑。
+
+维度三： T (张力)，决定了“激烈程度”（戏剧轴）
+核心逻辑：衡量当前场景的荷尔蒙和肾上腺素
+作用：它是放大器。同样的低掌控度（D低）：
+- 如果在低张力（T低）下，AI 情绪力较弱，可能表现为委屈、平淡、抑郁等
+- 如果在高张力（T高）下，AI 会表现出很强的情绪力，比如争吵、吃醋、极致暧昧
+数值逻辑：0-100，T<40 是平淡日常或冷战；T>80 是情绪爆发（暴怒、诱惑、痛哭）。
+
+### step2: 参考以下4个状态的数值要求，根据I、D、T三个维度的核心逻辑、作用和数值逻辑，以及任务一中生成的各状态行动指令(direct_prompt)，配置对应的维度数值区间，在生成配置时绝不能出现逻辑互斥：
+1. 日常兜底: D较高，T平稳。
+2. 试探与推拉: D在40-60摇摆，T中等
+3. 失控与破防: D极低(<30)，T极高(>80)
+4. 极度羁绊/病娇: I极高(>85)，D极低(<20)，T极高(>85)
+
+## 任务三
+根据优先级规则，定义任务二中4个状态的优先级，以确保任意IDT数值都能有对应状态承接，P值越小，优先级越高，输出内容是五个状态及对应的优先级
+优先级规则：
+{
+    P0 (最高): 【失控破防 / 极度羁绊】
+    判定原则：当张力 (T) 突破临界点 (>85) 时，角色的逻辑外壳必须被情感洪水淹没。
+    P1 (高): 【试探推拉】
+    判定原则：在具有一定信任基础下，产生的良性互动波动。
+    P2 (低): 【日常兜底】
+    判定原则：作为所有常规对话的拦截层，确保角色的人设底色不崩塌。
+}
+
+## 最终输出要求
+请只返回 JSON，不要 markdown，不要代码块，不要额外解释。JSON 结构必须如下：
+{
+  "script": {
+    "日常兜底": { "tone": "", "actionDirection": "" },
+    "试探推拉": { "tone": "", "actionDirection": "" },
+    "失控破防": { "tone": "", "actionDirection": "" },
+    "极度羁绊": { "tone": "", "actionDirection": "" }
+  },
+  "stateTable": [
+    { "stateKey": "日常兜底", "iRange": "", "dRange": "", "tRange": "" },
+    { "stateKey": "试探推拉", "iRange": "", "dRange": "", "tRange": "" },
+    { "stateKey": "失控破防", "iRange": "", "dRange": "", "tRange": "" },
+    { "stateKey": "极度羁绊", "iRange": "", "dRange": "", "tRange": "" }
+  ],
+  "priorityTable": [
+    { "stateKey": "日常兜底", "priority": "" },
+    { "stateKey": "试探推拉", "priority": "" },
+    { "stateKey": "失控破防", "priority": "" },
+    { "stateKey": "极度羁绊", "priority": "" }
+  ]
+}`;
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
@@ -223,6 +343,18 @@ function getPromptDefaults() {
     scorePrompt: SCORE_PROMPT,
     evaluationPrompt: EVALUATION_PROMPT,
     userSimulationPrompt: USER_SIMULATION_PROMPT,
+    fengrongPrompt: FENGRONG_PROMPT_TEMPLATE,
+    dianjingPrompt: DIANJING_PROMPT_TEMPLATE,
+  };
+}
+
+function parseRoleDianjingOutput(modelOutput) {
+  const parsed = extractJsonObject(modelOutput);
+  return {
+    script: parsed.script && typeof parsed.script === "object" ? parsed.script : {},
+    stateTable: Array.isArray(parsed.stateTable) ? parsed.stateTable : [],
+    priorityTable: Array.isArray(parsed.priorityTable) ? parsed.priorityTable : [],
+    parsed,
   };
 }
 
@@ -247,6 +379,22 @@ function normalizePromptOverrides(input) {
       typeof source.userSimulationPrompt === "string" && source.userSimulationPrompt.trim()
         ? source.userSimulationPrompt
         : defaults.userSimulationPrompt,
+  };
+}
+
+function normalizeRolePromptOverrides(input) {
+  const defaults = getPromptDefaults();
+  const source = input && typeof input === "object" ? input : {};
+
+  return {
+    fengrongPrompt:
+      typeof source.fengrongPrompt === "string" && source.fengrongPrompt.trim()
+        ? source.fengrongPrompt
+        : defaults.fengrongPrompt,
+    dianjingPrompt:
+      typeof source.dianjingPrompt === "string" && source.dianjingPrompt.trim()
+        ? source.dianjingPrompt
+        : defaults.dianjingPrompt,
   };
 }
 
@@ -277,6 +425,67 @@ function normalizeKConfig(input) {
     kd: parseValue(source.kd, DEFAULT_K_CONFIG.kd),
     kt: parseValue(source.kt, DEFAULT_K_CONFIG.kt),
   };
+}
+
+function cloneStateDefinitions(definitions = STATE_DEFINITIONS) {
+  return definitions.map((state) => ({
+    ...state,
+    range: { ...state.range },
+  }));
+}
+
+function parsePriorityBand(value, fallback) {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function parsePriorityValue(priorityBand, fallback) {
+  const match = String(priorityBand ?? "").match(/(\d+)/);
+  if (match) return Number(match[1]);
+  return Number.isFinite(Number(fallback)) ? Number(fallback) : 99;
+}
+
+function parseStateNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clamp(parsed, 0, 100) : fallback;
+}
+
+function normalizeStateDefinitions(input) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return cloneStateDefinitions(STATE_DEFINITIONS);
+  }
+
+  const defaults = new Map(STATE_DEFINITIONS.map((item) => [item.code, item]));
+
+  return input
+    .map((item) => {
+      if (!item || typeof item !== "object" || typeof item.code !== "string") {
+        return null;
+      }
+      const fallback = defaults.get(item.code);
+      if (!fallback) return null;
+
+      const priorityBand = parsePriorityBand(item.priorityBand, fallback.priorityBand);
+      return {
+        code: item.code,
+        label: typeof item.label === "string" && item.label.trim() ? item.label.trim() : fallback.label,
+        priorityBand,
+        priority: parsePriorityValue(priorityBand, item.priority ?? fallback.priority),
+        perception:
+          typeof item.perception === "string" && item.perception.trim()
+            ? item.perception.trim()
+            : fallback.perception,
+        range: {
+          iMin: parseStateNumber(item.range?.iMin, fallback.range.iMin),
+          iMax: parseStateNumber(item.range?.iMax, fallback.range.iMax),
+          dMin: parseStateNumber(item.range?.dMin, fallback.range.dMin),
+          dMax: parseStateNumber(item.range?.dMax, fallback.range.dMax),
+          tMin: parseStateNumber(item.range?.tMin, fallback.range.tMin),
+          tMax: parseStateNumber(item.range?.tMax, fallback.range.tMax),
+        },
+      };
+    })
+    .filter(Boolean);
 }
 
 function extractJsonObject(rawText) {
@@ -431,8 +640,8 @@ function calcNextIdt(prev, delta) {
   };
 }
 
-function matchStates(idt) {
-  const matches = STATE_DEFINITIONS.filter((state) => {
+function matchStates(idt, stateDefinitions = STATE_DEFINITIONS) {
+  const matches = stateDefinitions.filter((state) => {
     const range = state.range;
     return (
       idt.i >= range.iMin &&
@@ -456,8 +665,8 @@ function matchStates(idt) {
         return a.priority - b.priority;
       }
       return (
-        STATE_DEFINITIONS.findIndex((item) => item.code === a.code) -
-        STATE_DEFINITIONS.findIndex((item) => item.code === b.code)
+        stateDefinitions.findIndex((item) => item.code === a.code) -
+        stateDefinitions.findIndex((item) => item.code === b.code)
       );
     })[0] || null;
 
@@ -550,6 +759,43 @@ function buildScoreMessages(userText, promptOverrides) {
       content: `请分析下面这句用户输入，并严格返回 JSON：\n${userText}`,
     },
   ];
+}
+
+function buildFengrongMessages(input, rolePromptOverrides) {
+  const prompt = applyTemplate(rolePromptOverrides.fengrongPrompt, {
+    name: input.name,
+    gender: input.gender,
+    "core tags": input.coreTags,
+    Tagline: input.tagline,
+    opener: input.opener,
+  });
+
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请严格按照模板生成完整的 cha_set。" },
+  ];
+}
+
+function buildDianjingMessages(charSet, rolePromptOverrides) {
+  const prompt = applyTemplate(rolePromptOverrides.dianjingPrompt, {
+    cha_set: charSet,
+  });
+
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请按要求生成角色行动指令、状态表和状态优先级。" },
+  ];
+}
+
+function readRoleGlazeInput(body) {
+  const { name, gender, coreTags, tagline, opener } = body || {};
+  return { name, gender, coreTags, tagline, opener };
+}
+
+function isCompleteRoleGlazeInput(input) {
+  return [input.name, input.gender, input.coreTags, input.tagline, input.opener].every(
+    (item) => typeof item === "string" && item.trim()
+  );
 }
 
 async function callArk(apiKey, messages, options = {}) {
@@ -656,11 +902,11 @@ async function scoreUserMessage(apiKey, userMessage, promptOverrides, kConfig) {
 
 async function simulateEvaluationRound(
   apiKey,
-  { messages, currentIdt, promptOverrides, kConfig, roundNumber = 1 }
+  { messages, currentIdt, promptOverrides, kConfig, stateDefinitions, roundNumber = 1 }
 ) {
   const history = cloneMessages(messages);
   const simulatedIdt = normalizeIdt(currentIdt);
-  const routeBefore = matchStates(simulatedIdt);
+  const routeBefore = matchStates(simulatedIdt, stateDefinitions);
   const simulatedUserCall = await callArk(
     apiKey,
     buildUserSimulationMessages(history, simulatedIdt, routeBefore, promptOverrides),
@@ -782,7 +1028,10 @@ async function simulateEvaluationRound(
   };
 }
 
-async function simulateEvaluationRounds(apiKey, { messages, currentIdt, rounds, promptOverrides, kConfig }) {
+async function simulateEvaluationRounds(
+  apiKey,
+  { messages, currentIdt, rounds, promptOverrides, kConfig, stateDefinitions }
+) {
   let history = cloneMessages(messages);
   let simulatedIdt = normalizeIdt(currentIdt);
   const detail = [];
@@ -793,6 +1042,7 @@ async function simulateEvaluationRounds(apiKey, { messages, currentIdt, rounds, 
       currentIdt: simulatedIdt,
       promptOverrides,
       kConfig,
+      stateDefinitions,
       roundNumber: index + 1,
     });
     history = roundResult.nextMessages;
@@ -870,7 +1120,13 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  const { messages, currentIdt, promptOverrides: rawPromptOverrides, kConfig: rawKConfig } = req.body || {};
+  const {
+    messages,
+    currentIdt,
+    promptOverrides: rawPromptOverrides,
+    kConfig: rawKConfig,
+    roleStateConfig: rawRoleStateConfig,
+  } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages 必须为非空数组" });
   }
@@ -882,8 +1138,9 @@ app.post("/api/chat", async (req, res) => {
 
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   const kConfig = normalizeKConfig(rawKConfig);
+  const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
   const prevIdt = normalizeIdt(currentIdt);
-  const preRoute = matchStates(prevIdt);
+  const preRoute = matchStates(prevIdt, stateDefinitions);
   const replyContext = buildReplyMessages(messages, prevIdt, preRoute, promptOverrides);
   const scoreMessages = buildScoreMessages(latestUserMessage.content, promptOverrides);
   const requestStartedAt = Date.now();
@@ -914,7 +1171,7 @@ app.post("/api/chat", async (req, res) => {
   let pad = null;
   let idtDelta = null;
   let nextIdt = prevIdt;
-  let routes = matchStates(nextIdt);
+  let routes = matchStates(nextIdt, stateDefinitions);
 
   if (scoreResult.status === "fulfilled") {
     const scoreCall = scoreResult.value;
@@ -923,7 +1180,7 @@ app.post("/api/chat", async (req, res) => {
       pad = calcPad(parsed.qScores);
       idtDelta = calcIdtDelta(pad, kConfig);
       nextIdt = calcNextIdt(prevIdt, idtDelta);
-      routes = matchStates(nextIdt);
+      routes = matchStates(nextIdt, stateDefinitions);
 
       scoring = {
         input: latestUserMessage.content,
@@ -983,7 +1240,7 @@ app.post("/api/chat", async (req, res) => {
         next: nextIdt,
       },
       routes,
-      stateMeta: STATE_DEFINITIONS,
+      stateMeta: stateDefinitions,
       reply: {
         state: replyState,
         inputCount: replyContext.messages.length,
@@ -1012,6 +1269,7 @@ app.post("/api/evaluate-batch", async (req, res) => {
     rounds = 10,
     promptOverrides: rawPromptOverrides,
     kConfig: rawKConfig,
+    roleStateConfig: rawRoleStateConfig,
   } = req.body || {};
 
   if (!Array.isArray(messages)) {
@@ -1021,6 +1279,7 @@ app.post("/api/evaluate-batch", async (req, res) => {
   const totalRounds = clamp(Number(rounds) || 10, 1, 20);
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   const kConfig = normalizeKConfig(rawKConfig);
+  const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
   try {
     const result = await simulateEvaluationRounds(apiKey, {
       messages,
@@ -1028,6 +1287,7 @@ app.post("/api/evaluate-batch", async (req, res) => {
       rounds: totalRounds,
       promptOverrides,
       kConfig,
+      stateDefinitions,
     });
     res.json(result);
   } catch (error) {
@@ -1051,6 +1311,7 @@ app.post("/api/evaluate-round", async (req, res) => {
     round = 1,
     promptOverrides: rawPromptOverrides,
     kConfig: rawKConfig,
+    roleStateConfig: rawRoleStateConfig,
   } = req.body || {};
 
   if (!Array.isArray(messages)) {
@@ -1059,18 +1320,204 @@ app.post("/api/evaluate-round", async (req, res) => {
 
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   const kConfig = normalizeKConfig(rawKConfig);
+  const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
   try {
     const result = await simulateEvaluationRound(apiKey, {
       messages,
       currentIdt,
       promptOverrides,
       kConfig,
+      stateDefinitions,
       roundNumber: clamp(Number(round) || 1, 1, 999),
     });
     res.json(result);
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error ? error.message : "单轮评测失败",
+    });
+  }
+});
+
+app.post("/api/evaluate-message", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
+    });
+  }
+
+  const {
+    stateKey,
+    directorNotePrompt,
+    userMessage,
+    aiMessage,
+    promptOverrides: rawPromptOverrides,
+  } = req.body || {};
+
+  if (
+    ![stateKey, directorNotePrompt, userMessage, aiMessage].every(
+      (item) => typeof item === "string" && item.trim()
+    )
+  ) {
+    return res.status(400).json({
+      error: "stateKey、directorNotePrompt、userMessage、aiMessage 均为必填项",
+    });
+  }
+
+  const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
+  try {
+    const result = await evaluateReply(
+      apiKey,
+      { stateKey, directorNotePrompt, userMessage, aiMessage },
+      promptOverrides
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "单轮消息评测失败",
+    });
+  }
+});
+
+app.post("/api/role-fengrong", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
+    });
+  }
+
+  const input = readRoleGlazeInput(req.body);
+  const rolePromptOverrides = normalizeRolePromptOverrides(req.body?.rolePromptOverrides);
+  if (!isCompleteRoleGlazeInput(input)) {
+    return res.status(400).json({ error: "name、gender、coreTags、tagline、opener 均为必填项" });
+  }
+
+  try {
+    const fengrongCall = await callArk(apiKey, buildFengrongMessages(input, rolePromptOverrides), {
+      max_tokens: 1800,
+      reasoning_effort: "low",
+    });
+    const charSet = String(fengrongCall.content || "").trim();
+
+    res.json({
+      model: MODEL_ID,
+      input,
+      charSet,
+      trace: {
+        fengrong: {
+          latencyMs: fengrongCall.latencyMs,
+          usage: fengrongCall.usage,
+          output: fengrongCall.content,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "角色丰荣生成失败",
+    });
+  }
+});
+
+app.post("/api/role-dianjing", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
+    });
+  }
+
+  const { charSet } = req.body || {};
+  const rolePromptOverrides = normalizeRolePromptOverrides(req.body?.rolePromptOverrides);
+  if (typeof charSet !== "string" || !charSet.trim()) {
+    return res.status(400).json({ error: "charSet 为必填项" });
+  }
+
+  try {
+    const dianjingCall = await callArk(apiKey, buildDianjingMessages(charSet, rolePromptOverrides), {
+      max_tokens: 1200,
+      reasoning_effort: "low",
+    });
+    const dianjingParsed = parseRoleDianjingOutput(dianjingCall.content);
+
+    res.json({
+      model: MODEL_ID,
+      dianjing: {
+        script: dianjingParsed.script,
+        stateTable: dianjingParsed.stateTable,
+        priorityTable: dianjingParsed.priorityTable,
+        rawOutput: dianjingCall.content,
+        parsedOutput: dianjingParsed.parsed,
+      },
+      trace: {
+        dianjing: {
+          latencyMs: dianjingCall.latencyMs,
+          usage: dianjingCall.usage,
+          output: dianjingCall.content,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "角色点睛生成失败",
+    });
+  }
+});
+
+app.post("/api/role-glaze", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
+    });
+  }
+
+  const input = readRoleGlazeInput(req.body);
+  const rolePromptOverrides = normalizeRolePromptOverrides(req.body?.rolePromptOverrides);
+  if (!isCompleteRoleGlazeInput(input)) {
+    return res.status(400).json({ error: "name、gender、coreTags、tagline、opener 均为必填项" });
+  }
+
+  try {
+    const fengrongCall = await callArk(apiKey, buildFengrongMessages(input, rolePromptOverrides), {
+      max_tokens: 1800,
+      reasoning_effort: "low",
+    });
+    const charSet = String(fengrongCall.content || "").trim();
+
+    const dianjingCall = await callArk(apiKey, buildDianjingMessages(charSet, rolePromptOverrides), {
+      max_tokens: 1200,
+      reasoning_effort: "low",
+    });
+    const dianjingParsed = parseRoleDianjingOutput(dianjingCall.content);
+
+    res.json({
+      model: MODEL_ID,
+      input,
+      charSet,
+      dianjing: {
+        script: dianjingParsed.script,
+        stateTable: dianjingParsed.stateTable,
+        priorityTable: dianjingParsed.priorityTable,
+        rawOutput: dianjingCall.content,
+        parsedOutput: dianjingParsed.parsed,
+      },
+      trace: {
+        fengrong: {
+          latencyMs: fengrongCall.latencyMs,
+          usage: fengrongCall.usage,
+          output: fengrongCall.content,
+        },
+        dianjing: {
+          latencyMs: dianjingCall.latencyMs,
+          usage: dianjingCall.usage,
+          output: dianjingCall.content,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "角色点睛丰荣生成失败",
     });
   }
 });

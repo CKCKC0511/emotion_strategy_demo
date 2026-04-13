@@ -64,6 +64,11 @@
         gap: 16px;
         align-items: start;
       }
+      .left-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
       .panel {
         border: 1px solid var(--border);
         border-radius: 16px;
@@ -95,6 +100,37 @@
         min-height: 420px;
         position: sticky;
         top: 24px;
+      }
+      .session-panel {
+        min-height: 220px;
+      }
+      .session-list {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .session-item {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(16, 23, 33, 0.72);
+        padding: 12px;
+      }
+      .session-item .title {
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .session-item .meta {
+        color: var(--muted);
+        font-size: 0.82rem;
+        margin-bottom: 10px;
+      }
+      .session-item .detail {
+        margin-top: 10px;
+      }
+      .session-item pre {
+        white-space: pre-wrap;
+        word-break: break-word;
       }
       .msgs {
         flex: 1;
@@ -148,7 +184,8 @@
       }
       textarea,
       button,
-      input[type="number"] {
+      input[type="number"],
+      input[type="text"] {
         font: inherit;
         color: var(--text);
         background: var(--panel);
@@ -156,6 +193,9 @@
         border-radius: 12px;
       }
       input[type="number"] {
+        padding: 10px 12px;
+      }
+      input[type="text"] {
         padding: 10px 12px;
       }
       textarea {
@@ -244,6 +284,27 @@
         color: var(--muted);
         font-size: 0.82rem;
         margin-top: 6px;
+      }
+      .app-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .app-tab {
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(10, 15, 22, 0.45);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 0.92rem;
+      }
+      .app-tab.active {
+        background: rgba(91, 140, 255, 0.18);
+        border-color: rgba(91, 140, 255, 0.55);
+      }
+      .app-view[hidden] {
+        display: none;
       }
       .trace-body {
         display: grid;
@@ -452,8 +513,99 @@
         border-radius: 10px;
         padding: 10px 12px;
       }
+      .role-glaze-panel {
+        min-height: calc(100vh - 220px);
+      }
+      .role-glaze-wrap {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .role-glaze-wrap.prompt-mode {
+        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+        gap: 12px;
+      }
+      .role-glaze-form {
+        display: grid;
+        gap: 12px;
+      }
+      .role-glaze-form textarea {
+        width: 100%;
+        min-height: 100px;
+        max-height: 240px;
+      }
+      .role-glaze-form input[type="text"] {
+        width: 100%;
+        padding: 12px;
+      }
+      #roleFengrongResult,
+      #roleDianjingResult {
+        min-width: 0;
+      }
+      #roleFengrongResult.prompt-mode,
+      #roleDianjingResult.prompt-mode {
+        width: 100%;
+      }
+      #roleFengrongResult.prompt-mode .node,
+      #roleDianjingResult.prompt-mode .node {
+        width: 100%;
+      }
+      #roleFengrongResult.prompt-mode .node-body,
+      #roleDianjingResult.prompt-mode .node-body {
+        gap: 16px;
+      }
+      #roleFengrongResult.prompt-mode textarea,
+      #roleDianjingResult.prompt-mode textarea {
+        width: 100%;
+        min-height: 340px;
+        max-height: none;
+        resize: vertical;
+      }
+      .sub-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .sub-tab {
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(10, 15, 22, 0.45);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .sub-tab.active {
+        background: rgba(91, 140, 255, 0.18);
+        border-color: rgba(91, 140, 255, 0.55);
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        background: rgba(10, 15, 22, 0.45);
+        font-weight: 600;
+      }
       @media (max-width: 1080px) {
         .layout {
+          grid-template-columns: 1fr;
+        }
+        .role-glaze-wrap {
           grid-template-columns: 1fr;
         }
         .trace-body {
@@ -489,7 +641,15 @@
         </p>
       </header>
 
+      <div class="app-tabs">
+        <button type="button" class="app-tab active" id="appTabEmotionStrategy">情感策略demo</button>
+        <button type="button" class="app-tab" id="appTabRoleFengrong">丰荣</button>
+        <button type="button" class="app-tab" id="appTabRoleDianjing">点睛</button>
+      </div>
+
+      <div class="app-view" id="emotionStrategyView">
       <div class="layout">
+        <div class="left-stack">
         <section class="panel chat-panel">
           <div class="panel-header">
             <div class="panel-title">对话区</div>
@@ -503,14 +663,23 @@
           </div>
         </section>
 
+        <section class="panel session-panel">
+          <div class="panel-header">
+            <div class="panel-title">自动评测 Session</div>
+            <div class="panel-meta" id="sessionMeta">每轮对话后异步自动评测，不阻塞回复</div>
+          </div>
+          <div class="session-list" id="sessionList"></div>
+        </section>
+        </div>
+
         <section class="panel trace-panel">
           <div class="panel-header">
-            <div class="panel-title">节点可视化</div>
+            <div class="panel-title">对话节点可视化</div>
             <div class="panel-meta" id="traceMeta">等待第一轮消息</div>
           </div>
           <div class="summary-strip" id="summaryStrip"></div>
           <div class="trace-tabs">
-            <button type="button" class="trace-tab active" id="tabNodes">节点可视化</button>
+            <button type="button" class="trace-tab active" id="tabNodes">对话节点可视化</button>
             <button type="button" class="trace-tab" id="tabEvaluation">评测</button>
             <button type="button" class="trace-tab" id="tabRoleSettings">角色设定</button>
             <button type="button" class="trace-tab" id="tabPrompts">修改提示词</button>
@@ -525,18 +694,38 @@
           </div>
         </section>
       </div>
+      </div>
+
+      <div class="app-view" id="roleFengrongView" hidden>
+        <section class="panel role-glaze-panel">
+          <div class="panel-header">
+            <div class="panel-title">丰荣</div>
+            <div class="panel-meta" id="roleFengrongMeta">输入角色基础信息后，生成角色丰荣结果</div>
+          </div>
+          <div class="role-glaze-wrap" id="roleFengrongWrap">
+            <div class="role-glaze-form" id="roleFengrongForm"></div>
+            <div id="roleFengrongResult"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="app-view" id="roleDianjingView" hidden>
+        <section class="panel role-glaze-panel">
+          <div class="panel-header">
+            <div class="panel-title">点睛</div>
+            <div class="panel-meta" id="roleDianjingMeta">输入角色基础信息后，生成剧本、状态表与状态优先级</div>
+          </div>
+          <div class="role-glaze-wrap" id="roleDianjingWrap">
+            <div class="role-glaze-form" id="roleDianjingForm"></div>
+            <div id="roleDianjingResult"></div>
+          </div>
+        </section>
+      </div>
     </div>
 
     <script>
       const INITIAL_IDT = { i: 15, d: 80, t: 30 };
       const STATE_LABELS = {
-        coldWar: {
-          label: "冰点冷战",
-          priorityBand: "P2",
-          priority: 2,
-          perception: "掌控力高居不下但情绪如死水般沉寂，让他刻意拉开与危险源的距离。",
-          rangeText: "I[30,80] D[60,100] T[0,19]",
-        },
         obsession: {
           label: "极度羁绊",
           priorityBand: "P1",
@@ -545,14 +734,14 @@
           rangeText: "I[85,100] D[0,19] T[85,100]",
         },
         breakdown: {
-          label: "失控与破防",
+          label: "失控破防",
           priorityBand: "P2",
           priority: 2,
           perception: "彻底丧失掌控权且情绪极度紧绷，让他感到前所未有的恐慌与应激。",
           rangeText: "I[0,100] D[0,29] T[80,100]",
         },
         pushPull: {
-          label: "试探与推拉",
+          label: "试探推拉",
           priorityBand: "P3",
           priority: 3,
           perception: "掌控力开始动摇，情绪张力逐渐升高，未知的诱惑让他既警惕又兴奋。",
@@ -566,17 +755,152 @@
           rangeText: "I[0,100] D[50,100] T[0,60]",
         },
       };
+      const STATE_CODE_ORDER = ["obsession", "breakdown", "pushPull", "dailyFallback"];
+      const ROLE_STATE_LABEL_TO_CODE = {
+        日常兜底: "dailyFallback",
+        试探推拉: "pushPull",
+        "试探与推拉": "pushPull",
+        失控破防: "breakdown",
+        "失控与破防": "breakdown",
+        极度羁绊: "obsession",
+        "极度羁绊/病娇": "obsession",
+      };
+
+      function buildDefaultRoleStateConfig() {
+        return STATE_CODE_ORDER.map((code) => {
+          const meta = STATE_LABELS[code];
+          const ranges = String(meta.rangeText || "").match(/I\[(\d+),(\d+)\]\s+D\[(\d+),(\d+)\]\s+T\[(\d+),(\d+)\]/);
+          return {
+            code,
+            label: meta.label,
+            priorityBand: meta.priorityBand,
+            priority: meta.priority,
+            perception: meta.perception,
+            range: {
+              iMin: ranges ? Number(ranges[1]) : 0,
+              iMax: ranges ? Number(ranges[2]) : 100,
+              dMin: ranges ? Number(ranges[3]) : 0,
+              dMax: ranges ? Number(ranges[4]) : 100,
+              tMin: ranges ? Number(ranges[5]) : 0,
+              tMax: ranges ? Number(ranges[6]) : 100,
+            },
+          };
+        });
+      }
+
+      function cloneRoleStateConfig(config) {
+        return (config || buildDefaultRoleStateConfig()).map((item) => ({
+          ...item,
+          range: { ...item.range },
+        }));
+      }
+
+      function parsePriorityValue(priorityBand, fallback = 99) {
+        const match = String(priorityBand || "").match(/(\d+)/);
+        return match ? Number(match[1]) : fallback;
+      }
+
+      function buildRangeText(range) {
+        return `I[${range.iMin},${range.iMax}] D[${range.dMin},${range.dMax}] T[${range.tMin},${range.tMax}]`;
+      }
+
+      function parseRangePair(value) {
+        const text = String(value ?? "").trim();
+        const bracketMatch = text.match(/(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/);
+        if (!bracketMatch) return null;
+        return [Number(bracketMatch[1]), Number(bracketMatch[2])];
+      }
+
+      function normalizePriorityBand(value) {
+        if (value === null || value === undefined) return "";
+        const text = String(value).trim();
+        if (!text) return "";
+        if (/^P\d+$/i.test(text)) return text.toUpperCase();
+        if (/^\d+$/.test(text)) return `P${text}`;
+        return text;
+      }
+
+      function syncDianjingResultToRoleSettings() {
+        if (!roleDianjingResult?.dianjing) return;
+
+        const nextConfig = cloneRoleStateConfig(currentRoleStateConfig());
+        const script = roleDianjingResult.dianjing.script || {};
+        const stateTable = roleDianjingResult.dianjing.stateTable || [];
+        const priorityTable = roleDianjingResult.dianjing.priorityTable || [];
+
+        Object.entries(script).forEach(([stateLabel, item]) => {
+          const code = ROLE_STATE_LABEL_TO_CODE[stateLabel];
+          const target = nextConfig.find((state) => state.code === code);
+          if (!target) return;
+          const tone = item?.tone ? `语气：${item.tone}` : "";
+          const action = item?.actionDirection ? `动作描写方向：${item.actionDirection}` : "";
+          target.perception = [tone, action].filter(Boolean).join("；") || target.perception;
+        });
+
+        stateTable.forEach((row) => {
+          const code = ROLE_STATE_LABEL_TO_CODE[row.stateKey];
+          const target = nextConfig.find((state) => state.code === code);
+          if (!target) return;
+          const iRange = parseRangePair(row.iRange);
+          const dRange = parseRangePair(row.dRange);
+          const tRange = parseRangePair(row.tRange);
+          if (iRange) {
+            target.range.iMin = iRange[0];
+            target.range.iMax = iRange[1];
+          }
+          if (dRange) {
+            target.range.dMin = dRange[0];
+            target.range.dMax = dRange[1];
+          }
+          if (tRange) {
+            target.range.tMin = tRange[0];
+            target.range.tMax = tRange[1];
+          }
+        });
+
+        priorityTable.forEach((row) => {
+          const code = ROLE_STATE_LABEL_TO_CODE[row.stateKey];
+          const target = nextConfig.find((state) => state.code === code);
+          if (!target) return;
+          const band = normalizePriorityBand(row.priority);
+          if (!band) return;
+          target.priorityBand = band;
+          target.priority = parsePriorityValue(band, target.priority);
+        });
+
+        roleStateConfig = nextConfig;
+        activeAppTab = "emotionStrategy";
+        activeTraceTab = "roleSettings";
+        renderAppView();
+        renderTrace();
+      }
 
       const msgsEl = document.getElementById("msgs");
       const inputEl = document.getElementById("input");
       const sendBtn = document.getElementById("send");
       const errEl = document.getElementById("err");
+      const sessionListEl = document.getElementById("sessionList");
+      const sessionMetaEl = document.getElementById("sessionMeta");
       const summaryStripEl = document.getElementById("summaryStrip");
       const traceBodyEl = document.getElementById("traceBody");
       const traceMainEl = document.getElementById("traceMain");
       const traceSideEl = document.getElementById("traceSide");
       const historyListEl = document.getElementById("historyList");
       const traceMetaEl = document.getElementById("traceMeta");
+      const appTabEmotionStrategyEl = document.getElementById("appTabEmotionStrategy");
+      const appTabRoleFengrongEl = document.getElementById("appTabRoleFengrong");
+      const appTabRoleDianjingEl = document.getElementById("appTabRoleDianjing");
+      const emotionStrategyViewEl = document.getElementById("emotionStrategyView");
+      const roleFengrongViewEl = document.getElementById("roleFengrongView");
+      const roleDianjingViewEl = document.getElementById("roleDianjingView");
+      const roleFengrongWrapEl = document.getElementById("roleFengrongWrap");
+      const roleDianjingWrapEl = document.getElementById("roleDianjingWrap");
+      const roleFengrongFormEl = document.getElementById("roleFengrongForm");
+      const roleDianjingFormEl = document.getElementById("roleDianjingForm");
+      const roleFengrongResultEl = document.getElementById("roleFengrongResult");
+      const roleDianjingResultEl = document.getElementById("roleDianjingResult");
+      const roleFengrongMetaEl = document.getElementById("roleFengrongMeta");
+      const roleDianjingMetaEl = document.getElementById("roleDianjingMeta");
       const tabNodesEl = document.getElementById("tabNodes");
       const tabEvaluationEl = document.getElementById("tabEvaluation");
       const tabRoleSettingsEl = document.getElementById("tabRoleSettings");
@@ -594,9 +918,37 @@
       let evaluationRounds = 10;
       let standaloneEvaluationBatch = null;
       let evaluationProgress = null;
+      let autoEvaluationSessions = [];
+      let autoEvaluationCounter = 0;
       let kConfig = { ki: 1, kd: 1, kt: 1 };
+      let roleStateConfig = cloneRoleStateConfig();
       let promptDefaults = null;
       let promptOverrides = null;
+      let rolePromptDefaults = null;
+      let rolePromptOverrides = null;
+      let activeAppTab = "emotionStrategy";
+      let activeRoleFengrongSubTab = "result";
+      let activeRoleDianjingSubTab = "result";
+      let roleFengrongLoading = false;
+      let roleDianjingLoadingStage = "";
+      const EMPTY_ROLE_INPUT = {
+        name: "",
+        gender: "",
+        coreTags: "",
+        tagline: "",
+        opener: "",
+      };
+      let roleFengrongInput = { ...EMPTY_ROLE_INPUT };
+      let roleDianjingInput = { ...EMPTY_ROLE_INPUT };
+      let roleFengrongResult = null;
+      let roleDianjingResult = null;
+      const ROLE_GLAZE_FIELD_LABELS = {
+        name: "角色姓名",
+        gender: "角色性别",
+        coreTags: "核心设定与原始标签",
+        tagline: "角色简介",
+        opener: "原始开场白",
+      };
 
       function showErr(msg) {
         errEl.textContent = msg;
@@ -617,17 +969,25 @@
         return Number(value).toFixed(2).replace(/\.00$/, "");
       }
 
+      function currentRoleStateConfig() {
+        return roleStateConfig || cloneRoleStateConfig();
+      }
+
+      function currentStateMetaMap() {
+        return Object.fromEntries(currentRoleStateConfig().map((item) => [item.code, item]));
+      }
+
       function formatRouteItem(item) {
         if (!item) return "-";
         if (typeof item === "string") {
-          const meta = STATE_LABELS[item];
+          const meta = currentStateMetaMap()[item];
           return meta ? `${meta.label} (${meta.priorityBand})` : item;
         }
         return `${item.label} (${item.priorityBand})`;
       }
 
       function getStateMeta(code) {
-        return STATE_LABELS[code] || null;
+        return currentStateMetaMap()[code] || null;
       }
 
       function addBubble(role, content, metaText = "") {
@@ -868,6 +1228,68 @@ ${item.state.score}
 ${item.averageScore}`;
       }
 
+      function renderAutoEvaluationSessions() {
+        if (!autoEvaluationSessions.length) {
+          sessionMetaEl.textContent = "每轮对话后异步自动评测，不阻塞回复";
+          sessionListEl.innerHTML = `<div class="placeholder">发送消息后，这里会按轮次显示自动评测 session。</div>`;
+          return;
+        }
+
+        const runningCount = autoEvaluationSessions.filter((item) => item.inProgress).length;
+        sessionMetaEl.textContent = runningCount
+          ? `自动评测异步进行中，当前运行 ${runningCount} 个 session`
+          : "最近的自动评测 session";
+
+        sessionListEl.innerHTML = autoEvaluationSessions
+          .map((session) => {
+            const statusText = session.inProgress
+              ? "自动评测异步进行中"
+              : session.error
+              ? "评测失败"
+              : "评测完成";
+
+            const stats = session.result
+              ? `
+                  <div class="chip-row">
+                    <span class="chip">设定分 ${fmt(session.result.setting.score)}</span>
+                    <span class="chip">状态分 ${fmt(session.result.state.score)}</span>
+                    <span class="chip">均分 ${fmt(session.result.averageScore)}</span>
+                  </div>
+                `
+              : "";
+
+            const detailText = session.result
+              ? `命中状态
+${session.result.stateKey}
+
+--------------------
+设定分
+${session.result.setting.score}
+原因：${session.result.setting.reason}
+
+--------------------
+状态分
+${session.result.state.score}
+原因：${session.result.state.reason}
+
+--------------------
+均分
+${session.result.averageScore}`
+              : session.error || "等待本轮评测结果...";
+
+            return `
+              <div class="session-item">
+                <div class="title">Session ${session.sessionNo} · 第 ${session.roundNo} 轮对话</div>
+                <div class="meta">${escapeHtml(statusText)}</div>
+                <div class="muted">${escapeHtml(session.userInput || "-")}</div>
+                ${stats}
+                <div class="detail block"><pre>${escapeHtml(detailText)}</pre></div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
       function getProgressText(targetId, fallbackTotal = evaluationRounds) {
         if (!evaluationProgress || evaluationProgress.targetId !== targetId) return "";
         return `已完成 ${evaluationProgress.completed}/${evaluationProgress.total || fallbackTotal} 轮`;
@@ -887,12 +1309,516 @@ ${item.averageScore}`;
         }
       }
 
+      function renderRoleBaseForm({ formEl, input, actionId, buttonLabel, loadingLabel, metaText }) {
+        formEl.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">角色基础输入</div>
+              <div class="node-meta">${escapeHtml(metaText)}</div>
+            </div>
+            <div class="node-body">
+              <div>
+                <div class="label">角色姓名</div>
+                <input id="${actionId}NameInput" type="text" value="${escapeHtml(input.name)}" placeholder="请填写角色姓名" />
+              </div>
+              <div>
+                <div class="label">角色性别</div>
+                <input id="${actionId}GenderInput" type="text" value="${escapeHtml(input.gender)}" placeholder="请填写角色性别" />
+              </div>
+              <div>
+                <div class="label">核心设定与原始标签</div>
+                <textarea id="${actionId}CoreTagsInput" rows="4" placeholder="请填写核心设定与原始标签">${escapeHtml(input.coreTags)}</textarea>
+              </div>
+              <div>
+                <div class="label">角色简介</div>
+                <textarea id="${actionId}TaglineInput" rows="5" placeholder="请填写角色简介">${escapeHtml(input.tagline)}</textarea>
+              </div>
+              <div>
+                <div class="label">原始开场白</div>
+                <textarea id="${actionId}OpenerInput" rows="5" placeholder="请填写原始开场白">${escapeHtml(input.opener)}</textarea>
+              </div>
+              <div class="control-row">
+                <button type="button" id="${actionId}RunButton" ${loadingLabel ? "disabled" : ""}>
+                  ${escapeHtml(loadingLabel || buttonLabel)}
+                </button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderScriptCards(script) {
+        const entries = Object.entries(script || {});
+        if (!entries.length) {
+          return `<div class="placeholder">生成完成后，这里会展示各状态的行动指令。</div>`;
+        }
+        return entries
+          .map(
+            ([stateKey, item]) => `
+              <section class="node">
+                <div class="node-head">
+                  <div class="node-title">${escapeHtml(stateKey)}</div>
+                  <div class="node-meta">行动指令</div>
+                </div>
+                <div class="node-body">
+                  <div>
+                    <div class="label">语气</div>
+                    <div class="block"><pre>${escapeHtml(item?.tone || "-")}</pre></div>
+                  </div>
+                  <div>
+                    <div class="label">动作描写方向</div>
+                    <div class="block"><pre>${escapeHtml(item?.actionDirection || "-")}</pre></div>
+                  </div>
+                </div>
+              </section>
+            `
+          )
+          .join("");
+      }
+
+      function renderSimpleTable(headers, rows) {
+        if (!rows.length) {
+          return `<div class="placeholder">生成完成后，这里会显示内容。</div>`;
+        }
+        return `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>${headers.map((item) => `<th>${escapeHtml(item)}</th>`).join("")}</tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell ?? "-")}</td>`).join("")}</tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function renderRolePromptEditor(kind) {
+        const prompts = currentRolePromptOverrides();
+        if (!rolePromptDefaults || !rolePromptOverrides) {
+          return `<div class="placeholder">提示词加载中...</div>`;
+        }
+
+        const isFengrong = kind === "fengrong";
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">修改提示词</div>
+              <div class="node-meta">默认显示系统提示词，只在当前浏览器会话里生效</div>
+            </div>
+            <div class="node-body">
+              <div class="chip-row">
+                <span class="chip">${isFengrong ? "丰荣提示词" : "点睛提示词"}</span>
+              </div>
+              <div class="muted">修改后会自动用于下一次${isFengrong ? "丰荣" : "点睛"}生成，刷新页面后恢复默认。</div>
+              <div>
+                <div class="label">${isFengrong ? "丰荣提示词" : "点睛提示词"}</div>
+                <textarea id="${isFengrong ? "rolePromptFengrong" : "rolePromptDianjing"}" rows="${
+                  isFengrong ? 24 : 22
+                }">${escapeHtml(isFengrong ? prompts.fengrongPrompt : prompts.dianjingPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="${isFengrong ? "fengrongPrompt" : "dianjingPrompt"}">恢复默认</button>
+                  <button type="button" id="${isFengrong ? "resetFengrongPrompt" : "resetDianjingPrompt"}">全部恢复默认</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderRoleFengrongResult() {
+        const isPromptSettings = activeRoleFengrongSubTab === "promptSettings";
+        roleFengrongWrapEl.classList.toggle("prompt-mode", isPromptSettings);
+        roleFengrongResultEl.classList.toggle("prompt-mode", isPromptSettings);
+
+        const subtabs = [
+          { id: "result", label: "丰荣结果" },
+          { id: "promptSettings", label: "修改提示词" },
+        ];
+
+        let content = `<div class="placeholder">填写左侧信息后，点击“生成丰荣结果”。</div>`;
+        if (activeRoleFengrongSubTab === "promptSettings") {
+          content = renderRolePromptEditor("fengrong");
+        } else if (roleFengrongResult) {
+          content = `
+            <section class="node">
+              <div class="node-head">
+                <div class="node-title">cha_set</div>
+                <div class="node-meta">丰荣生成结果</div>
+              </div>
+              <div class="node-body">
+                <div class="chip-row">
+                  <span class="chip">丰荣耗时 ${fmt(roleFengrongResult.trace?.fengrong?.latencyMs)}ms</span>
+                </div>
+                <div class="block"><pre>${escapeHtml(roleFengrongResult.charSet || "-")}</pre></div>
+              </div>
+            </section>
+          `;
+        }
+
+        roleFengrongResultEl.innerHTML = `
+          <div class="sub-tabs">
+            ${subtabs
+              .map(
+                (item) => `
+                  <button type="button" class="sub-tab ${
+                    activeRoleFengrongSubTab === item.id ? "active" : ""
+                  }" data-role-fengrong-subtab="${item.id}">${escapeHtml(item.label)}</button>
+                `
+              )
+              .join("")}
+          </div>
+          ${content}
+        `;
+      }
+
+      function renderRoleDianjingResult() {
+        const isPromptSettings = activeRoleDianjingSubTab === "promptSettings";
+        roleDianjingWrapEl.classList.toggle("prompt-mode", isPromptSettings);
+        roleDianjingResultEl.classList.toggle("prompt-mode", isPromptSettings);
+
+        const subtabs = [
+          { id: "result", label: "点睛结果" },
+          { id: "promptSettings", label: "修改提示词" },
+        ];
+
+        let content = `<div class="placeholder">填写左侧信息后，点击“生成点睛结果”。</div>`;
+        if (activeRoleDianjingSubTab === "promptSettings") {
+          content = renderRolePromptEditor("dianjing");
+        } else if (roleDianjingResult) {
+          content =
+            roleDianjingLoadingStage === "dianjing" && !roleDianjingResult.dianjing
+              ? `<div class="placeholder">点睛生成中，结果会在完成后自动显示。</div>`
+              : [
+                  renderScriptCards(roleDianjingResult.dianjing?.script),
+                  nodeTemplate(
+                    "状态表",
+                    "IDT 区间配置",
+                    renderSimpleTable(
+                      ["AI状态（state_key）", "I区间", "D区间", "T区间"],
+                      (roleDianjingResult.dianjing?.stateTable || []).map((item) => [
+                        item.stateKey,
+                        item.iRange,
+                        item.dRange,
+                        item.tRange,
+                      ])
+                    )
+                  ),
+                  nodeTemplate(
+                    "状态优先级",
+                    "路由优先级配置",
+                    renderSimpleTable(
+                      ["AI状态（state_key）", "优先级"],
+                      (roleDianjingResult.dianjing?.priorityTable || []).map((item) => [item.stateKey, item.priority])
+                    )
+                  ),
+                  `
+                    <section class="node">
+                      <div class="node-head">
+                        <div class="node-title">同步设置</div>
+                        <div class="node-meta">同步到情感策略demo的角色设定</div>
+                      </div>
+                      <div class="node-body">
+                        <div class="muted">会把剧本（director note）、状态表（IDT 区间）和状态优先级同步到情感策略demo，刷新页面后仍会重置。</div>
+                        <div class="control-row">
+                          <button type="button" id="syncDianjingToEmotionStrategy">同步设置到情感策略demo</button>
+                        </div>
+                      </div>
+                    </section>
+                  `,
+                ].join("");
+        }
+
+        roleDianjingResultEl.innerHTML = `
+          <div class="sub-tabs">
+            ${subtabs
+              .map(
+                (item) => `
+                  <button type="button" class="sub-tab ${
+                    activeRoleDianjingSubTab === item.id ? "active" : ""
+                  }" data-role-dianjing-subtab="${item.id}">${escapeHtml(item.label)}</button>
+                `
+              )
+              .join("")}
+          </div>
+          ${content}
+        `;
+      }
+
+      function bindRoleBaseFormEvents(kind) {
+        const isFengrong = kind === "fengrong";
+        const prefix = isFengrong ? "roleFengrong" : "roleDianjing";
+        const target = isFengrong ? roleFengrongInput : roleDianjingInput;
+        const fieldMap = {
+          [`${prefix}NameInput`]: "name",
+          [`${prefix}GenderInput`]: "gender",
+          [`${prefix}CoreTagsInput`]: "coreTags",
+          [`${prefix}TaglineInput`]: "tagline",
+          [`${prefix}OpenerInput`]: "opener",
+        };
+
+        Object.entries(fieldMap).forEach(([elementId, key]) => {
+          const field = document.getElementById(elementId);
+          if (!field) return;
+          field.addEventListener("input", (event) => {
+            target[key] = event.target.value;
+          });
+        });
+
+        const runButton = document.getElementById(`${prefix}RunButton`);
+        if (runButton) {
+          runButton.addEventListener("click", isFengrong ? runRoleFengrongGeneration : runRoleDianjingGeneration);
+        }
+      }
+
+      function bindRoleFengrongResultEvents() {
+        roleFengrongResultEl.querySelectorAll("[data-role-fengrong-subtab]").forEach((button) => {
+          button.addEventListener("click", () => {
+            activeRoleFengrongSubTab = button.getAttribute("data-role-fengrong-subtab") || "result";
+            renderRoleFengrongResult();
+            bindRoleFengrongResultEvents();
+            bindRolePromptEditorEvents("fengrong");
+          });
+        });
+      }
+
+      function bindRoleDianjingResultEvents() {
+        roleDianjingResultEl.querySelectorAll("[data-role-dianjing-subtab]").forEach((button) => {
+          button.addEventListener("click", () => {
+            activeRoleDianjingSubTab = button.getAttribute("data-role-dianjing-subtab") || "result";
+            renderRoleDianjingResult();
+            bindRoleDianjingResultEvents();
+            bindRolePromptEditorEvents("dianjing");
+          });
+        });
+
+        const syncButton = document.getElementById("syncDianjingToEmotionStrategy");
+        if (syncButton) {
+          syncButton.addEventListener("click", syncDianjingResultToRoleSettings);
+        }
+      }
+
+      async function runRoleFengrongGeneration() {
+        if (roleFengrongLoading) return;
+        const missing = Object.entries(roleFengrongInput).filter(([, value]) => !String(value || "").trim());
+        if (missing.length) {
+          showErr(`请先填写完整字段：${missing.map(([key]) => ROLE_GLAZE_FIELD_LABELS[key] || key).join("、")}`);
+          return;
+        }
+
+        showErr("");
+        roleFengrongLoading = true;
+        roleFengrongResult = null;
+        roleFengrongMetaEl.textContent = "丰荣生成中：正在生成角色丰荣结果";
+        renderRoleBaseForm({
+          formEl: roleFengrongFormEl,
+          input: roleFengrongInput,
+          actionId: "roleFengrong",
+          buttonLabel: "生成丰荣结果",
+          loadingLabel: "丰荣生成中...",
+          metaText: "基于角色基础信息生成丰荣结果",
+        });
+        bindRoleBaseFormEvents("fengrong");
+        renderRoleFengrongResult();
+        bindRoleFengrongResultEvents();
+
+        try {
+          const response = await fetch("/api/role-fengrong", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...roleFengrongInput,
+              rolePromptOverrides: { fengrongPrompt: currentRolePromptOverrides().fengrongPrompt },
+            }),
+          });
+          const data = await readApiResponse(response);
+          if (!response.ok) {
+            throw new Error(data.error?.message || data.error || (typeof data === "string" ? data : JSON.stringify(data)));
+          }
+          roleFengrongResult = data;
+          activeRoleFengrongSubTab = "result";
+          roleFengrongMetaEl.textContent = "生成完成：可以查看丰荣结果或修改提示词";
+        } catch (error) {
+          showErr(error instanceof Error ? error.message : String(error));
+          roleFengrongMetaEl.textContent = "生成失败，请检查输入或稍后重试";
+        } finally {
+          roleFengrongLoading = false;
+          renderRoleBaseForm({
+            formEl: roleFengrongFormEl,
+            input: roleFengrongInput,
+            actionId: "roleFengrong",
+            buttonLabel: "生成丰荣结果",
+            loadingLabel: "",
+            metaText: "基于角色基础信息生成丰荣结果",
+          });
+          bindRoleBaseFormEvents("fengrong");
+          renderRoleFengrongResult();
+          bindRoleFengrongResultEvents();
+          bindRolePromptEditorEvents("fengrong");
+        }
+      }
+
+      async function runRoleDianjingGeneration() {
+        if (roleDianjingLoadingStage) return;
+        const missing = Object.entries(roleDianjingInput).filter(([, value]) => !String(value || "").trim());
+        if (missing.length) {
+          showErr(`请先填写完整字段：${missing.map(([key]) => ROLE_GLAZE_FIELD_LABELS[key] || key).join("、")}`);
+          return;
+        }
+
+        showErr("");
+        roleDianjingResult = null;
+        roleDianjingLoadingStage = "fengrong";
+        roleDianjingMetaEl.textContent = "准备点睛：先生成 cha_set";
+        renderRoleBaseForm({
+          formEl: roleDianjingFormEl,
+          input: roleDianjingInput,
+          actionId: "roleDianjing",
+          buttonLabel: "生成点睛结果",
+          loadingLabel: "准备点睛中...",
+          metaText: "基于角色基础信息生成点睛结果",
+        });
+        bindRoleBaseFormEvents("dianjing");
+        renderRoleDianjingResult();
+        bindRoleDianjingResultEvents();
+
+        try {
+          const fengrongResponse = await fetch("/api/role-fengrong", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...roleDianjingInput,
+              rolePromptOverrides: { fengrongPrompt: currentRolePromptOverrides().fengrongPrompt },
+            }),
+          });
+          const fengrongData = await readApiResponse(fengrongResponse);
+          if (!fengrongResponse.ok) {
+            throw new Error(
+              fengrongData.error?.message || fengrongData.error || (typeof fengrongData === "string" ? fengrongData : JSON.stringify(fengrongData))
+            );
+          }
+
+          roleDianjingResult = { ...fengrongData, dianjing: null };
+          roleDianjingLoadingStage = "dianjing";
+          roleDianjingMetaEl.textContent = "点睛生成中：正在生成剧本、状态表和状态优先级";
+          activeRoleDianjingSubTab = "result";
+          renderRoleDianjingResult();
+          bindRoleDianjingResultEvents();
+
+          const dianjingResponse = await fetch("/api/role-dianjing", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              charSet: roleDianjingResult.charSet,
+              rolePromptOverrides: { dianjingPrompt: currentRolePromptOverrides().dianjingPrompt },
+            }),
+          });
+          const dianjingData = await readApiResponse(dianjingResponse);
+          if (!dianjingResponse.ok) {
+            throw new Error(
+              dianjingData.error?.message || dianjingData.error || (typeof dianjingData === "string" ? dianjingData : JSON.stringify(dianjingData))
+            );
+          }
+
+          roleDianjingResult = {
+            ...roleDianjingResult,
+            dianjing: dianjingData.dianjing,
+            trace: {
+              ...(roleDianjingResult.trace || {}),
+              ...(dianjingData.trace || {}),
+            },
+          };
+          roleDianjingMetaEl.textContent = "生成完成：可以查看剧本、状态表、状态优先级或修改提示词";
+        } catch (error) {
+          showErr(error instanceof Error ? error.message : String(error));
+          roleDianjingMetaEl.textContent =
+            roleDianjingLoadingStage === "dianjing" && roleDianjingResult?.charSet
+              ? "已拿到 cha_set，但点睛失败，请稍后重试"
+              : "生成失败，请检查输入或稍后重试";
+        } finally {
+          roleDianjingLoadingStage = "";
+          renderRoleBaseForm({
+            formEl: roleDianjingFormEl,
+            input: roleDianjingInput,
+            actionId: "roleDianjing",
+            buttonLabel: "生成点睛结果",
+            loadingLabel: "",
+            metaText: "基于角色基础信息生成点睛结果",
+          });
+          bindRoleBaseFormEvents("dianjing");
+          renderRoleDianjingResult();
+          bindRoleDianjingResultEvents();
+          bindRolePromptEditorEvents("dianjing");
+        }
+      }
+
+      function renderAppView() {
+        appTabEmotionStrategyEl.classList.toggle("active", activeAppTab === "emotionStrategy");
+        appTabRoleFengrongEl.classList.toggle("active", activeAppTab === "roleFengrong");
+        appTabRoleDianjingEl.classList.toggle("active", activeAppTab === "roleDianjing");
+        emotionStrategyViewEl.hidden = activeAppTab !== "emotionStrategy";
+        roleFengrongViewEl.hidden = activeAppTab !== "roleFengrong";
+        roleDianjingViewEl.hidden = activeAppTab !== "roleDianjing";
+
+        if (activeAppTab === "roleFengrong") {
+          renderRoleBaseForm({
+            formEl: roleFengrongFormEl,
+            input: roleFengrongInput,
+            actionId: "roleFengrong",
+            buttonLabel: "生成丰荣结果",
+            loadingLabel: roleFengrongLoading ? "丰荣生成中..." : "",
+            metaText: "基于角色基础信息生成丰荣结果",
+          });
+          renderRoleFengrongResult();
+          bindRoleBaseFormEvents("fengrong");
+          bindRoleFengrongResultEvents();
+          bindRolePromptEditorEvents("fengrong");
+        }
+
+        if (activeAppTab === "roleDianjing") {
+          renderRoleBaseForm({
+            formEl: roleDianjingFormEl,
+            input: roleDianjingInput,
+            actionId: "roleDianjing",
+            buttonLabel: "生成点睛结果",
+            loadingLabel:
+              roleDianjingLoadingStage === "fengrong"
+                ? "准备点睛中..."
+                : roleDianjingLoadingStage === "dianjing"
+                ? "点睛生成中..."
+                : "",
+            metaText: "基于角色基础信息生成点睛结果",
+          });
+          renderRoleDianjingResult();
+          bindRoleBaseFormEvents("dianjing");
+          bindRoleDianjingResultEvents();
+          bindRolePromptEditorEvents("dianjing");
+        }
+      }
+
+      function setActiveAppTab(nextTab) {
+        activeAppTab = nextTab;
+        renderAppView();
+      }
+
       function currentPromptOverrides() {
         return promptOverrides || promptDefaults || {
           replyPrompt: "",
           scorePrompt: "",
           evaluationPrompt: "",
           userSimulationPrompt: "",
+        };
+      }
+
+      function currentRolePromptOverrides() {
+        return rolePromptOverrides || rolePromptDefaults || {
+          fengrongPrompt: "",
+          dianjingPrompt: "",
         };
       }
 
@@ -934,6 +1860,14 @@ ${item.averageScore}`;
           scorePrompt: promptDefaults.scorePrompt,
           evaluationPrompt: promptDefaults.evaluationPrompt,
           userSimulationPrompt: promptDefaults.userSimulationPrompt,
+        };
+        rolePromptDefaults = {
+          fengrongPrompt: data.fengrongPrompt || "",
+          dianjingPrompt: data.dianjingPrompt || "",
+        };
+        rolePromptOverrides = {
+          fengrongPrompt: rolePromptDefaults.fengrongPrompt,
+          dianjingPrompt: rolePromptDefaults.dianjingPrompt,
         };
       }
 
@@ -997,6 +1931,7 @@ ${item.averageScore}`;
 
       function renderRoleSettingsEditor() {
         const currentK = currentKConfig();
+        const currentStates = currentRoleStateConfig();
         return `
           <section class="node">
             <div class="node-head">
@@ -1008,7 +1943,7 @@ ${item.averageScore}`;
                 <span class="chip">IDT 系数配置</span>
                 <span class="chip">聊天与评测同步</span>
               </div>
-              <div class="muted">修改后会作用到普通聊天和自动化评测的 IDT Delta 计算，刷新页面后恢复默认。</div>
+              <div class="muted">修改后会作用到普通聊天和自动化评测的 IDT Delta、状态路由与 director note，刷新页面后恢复默认。</div>
               <div>
                 <div class="label">IDT 系数配置</div>
                 <div class="control-row">
@@ -1019,6 +1954,92 @@ ${item.averageScore}`;
                   <label for="kInputKt">kt</label>
                   <input id="kInputKt" type="number" step="0.1" value="${escapeHtml(currentK.kt)}" />
                   <button type="button" id="resetKConfig">恢复默认 k 值</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">状态配置</div>
+                <div class="muted">可直接调整 director note、IDT 区间和优先级。</div>
+                ${currentStates
+                  .map(
+                    (state) => `
+                      <section class="node">
+                        <div class="node-head">
+                          <div class="node-title">${escapeHtml(state.label)}</div>
+                          <div class="node-meta">${escapeHtml(state.code)}</div>
+                        </div>
+                        <div class="node-body">
+                          <div>
+                            <div class="label">director note</div>
+                            <textarea data-role-state-perception="${escapeHtml(state.code)}" rows="6">${escapeHtml(
+                              state.perception
+                            )}</textarea>
+                          </div>
+                          <div class="control-row">
+                            <label>I min</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:iMin" type="number" min="0" max="100" value="${escapeHtml(state.range.iMin)}" />
+                            <label>I max</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:iMax" type="number" min="0" max="100" value="${escapeHtml(state.range.iMax)}" />
+                            <label>D min</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:dMin" type="number" min="0" max="100" value="${escapeHtml(state.range.dMin)}" />
+                            <label>D max</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:dMax" type="number" min="0" max="100" value="${escapeHtml(state.range.dMax)}" />
+                            <label>T min</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:tMin" type="number" min="0" max="100" value="${escapeHtml(state.range.tMin)}" />
+                            <label>T max</label>
+                            <input data-role-state-range="${escapeHtml(state.code)}:tMax" type="number" min="0" max="100" value="${escapeHtml(state.range.tMax)}" />
+                          </div>
+                          <div class="control-row">
+                            <label>优先级</label>
+                            <input data-role-state-priority="${escapeHtml(state.code)}" type="text" value="${escapeHtml(
+                              state.priorityBand
+                            )}" />
+                            <button type="button" data-reset-role-state="${escapeHtml(state.code)}">恢复该状态默认</button>
+                          </div>
+                        </div>
+                      </section>
+                    `
+                  )
+                  .join("")}
+                <div class="control-row">
+                  <button type="button" id="resetRoleStateConfig">恢复默认状态配置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderRoleGlazePromptEditor() {
+        const prompts = currentRolePromptOverrides();
+        if (!rolePromptDefaults || !rolePromptOverrides) {
+          return `<div class="placeholder">提示词加载中...</div>`;
+        }
+
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">修改提示词</div>
+              <div class="node-meta">默认显示系统提示词，只在当前浏览器会话里生效</div>
+            </div>
+            <div class="node-body">
+              <div class="chip-row">
+                <span class="chip">丰荣提示词</span>
+                <span class="chip">点睛提示词</span>
+              </div>
+              <div class="muted">修改后会自动用于下一次角色点睛丰荣生成，刷新页面后恢复默认。</div>
+              <div>
+                <div class="label">丰荣提示词</div>
+                <textarea id="rolePromptFengrong" rows="24">${escapeHtml(prompts.fengrongPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="fengrongPrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">点睛提示词</div>
+                <textarea id="rolePromptDianjing" rows="22">${escapeHtml(prompts.dianjingPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="dianjingPrompt">恢复默认</button>
+                  <button type="button" id="resetAllRolePrompts">全部恢复默认</button>
                 </div>
               </div>
             </div>
@@ -1067,6 +2088,59 @@ ${item.averageScore}`;
         }
       }
 
+      function bindRolePromptEditorEvents(kind) {
+        if (!rolePromptOverrides || !rolePromptDefaults) return;
+
+        const isFengrong = kind === "fengrong";
+        const fieldMap = isFengrong
+          ? { rolePromptFengrong: "fengrongPrompt" }
+          : { rolePromptDianjing: "dianjingPrompt" };
+
+        Object.entries(fieldMap).forEach(([elementId, key]) => {
+          const field = document.getElementById(elementId);
+          if (!field) return;
+          field.addEventListener("input", (event) => {
+            rolePromptOverrides[key] = event.target.value;
+          });
+        });
+
+        document.querySelectorAll("[data-reset-role-prompt]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-reset-role-prompt");
+            if (!key) return;
+            if (isFengrong && key !== "fengrongPrompt") return;
+            if (!isFengrong && key !== "dianjingPrompt") return;
+            rolePromptOverrides[key] = rolePromptDefaults[key];
+            if (isFengrong) {
+              renderRoleFengrongResult();
+              bindRoleFengrongResultEvents();
+            } else {
+              renderRoleDianjingResult();
+              bindRoleDianjingResultEvents();
+            }
+            bindRolePromptEditorEvents(kind);
+          });
+        });
+
+        const resetAllButton = document.getElementById(
+          isFengrong ? "resetFengrongPrompt" : "resetDianjingPrompt"
+        );
+        if (resetAllButton) {
+          resetAllButton.addEventListener("click", () => {
+            if (isFengrong) {
+              rolePromptOverrides.fengrongPrompt = rolePromptDefaults.fengrongPrompt;
+              renderRoleFengrongResult();
+              bindRoleFengrongResultEvents();
+            } else {
+              rolePromptOverrides.dianjingPrompt = rolePromptDefaults.dianjingPrompt;
+              renderRoleDianjingResult();
+              bindRoleDianjingResultEvents();
+            }
+            bindRolePromptEditorEvents(kind);
+          });
+        }
+      }
+
       function bindRoleSettingsEvents() {
         const kFieldMap = {
           kInputKi: "ki",
@@ -1086,6 +2160,55 @@ ${item.averageScore}`;
         if (resetKButton) {
           resetKButton.addEventListener("click", () => {
             kConfig = { ki: 1, kd: 1, kt: 1 };
+            renderTrace();
+          });
+        }
+
+        document.querySelectorAll("[data-role-state-perception]").forEach((field) => {
+          field.addEventListener("input", (event) => {
+            const code = event.target.getAttribute("data-role-state-perception");
+            const target = currentRoleStateConfig().find((item) => item.code === code);
+            if (!target) return;
+            target.perception = event.target.value;
+          });
+        });
+
+        document.querySelectorAll("[data-role-state-range]").forEach((field) => {
+          field.addEventListener("input", (event) => {
+            const token = event.target.getAttribute("data-role-state-range") || "";
+            const [code, key] = token.split(":");
+            const target = currentRoleStateConfig().find((item) => item.code === code);
+            if (!target || !key) return;
+            const parsed = Number(event.target.value);
+            target.range[key] = Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : target.range[key];
+          });
+        });
+
+        document.querySelectorAll("[data-role-state-priority]").forEach((field) => {
+          field.addEventListener("input", (event) => {
+            const code = event.target.getAttribute("data-role-state-priority");
+            const target = currentRoleStateConfig().find((item) => item.code === code);
+            if (!target) return;
+            target.priorityBand = event.target.value;
+            target.priority = parsePriorityValue(event.target.value, target.priority);
+          });
+        });
+
+        document.querySelectorAll("[data-reset-role-state]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const code = button.getAttribute("data-reset-role-state");
+            const fallback = cloneRoleStateConfig().find((item) => item.code === code);
+            const index = currentRoleStateConfig().findIndex((item) => item.code === code);
+            if (!fallback || index === -1) return;
+            roleStateConfig[index] = fallback;
+            renderTrace();
+          });
+        });
+
+        const resetRoleStateButton = document.getElementById("resetRoleStateConfig");
+        if (resetRoleStateButton) {
+          resetRoleStateButton.addEventListener("click", () => {
+            roleStateConfig = cloneRoleStateConfig();
             renderTrace();
           });
         }
@@ -1286,11 +2409,13 @@ ${item.averageScore}`;
             : "未命中";
         const primaryRouteText = routes.primary ? formatRouteItem(routes.primary) : "-";
         const primaryPerception = routes.primary?.perception || "-";
-        const stateRules = Object.values(STATE_LABELS)
+        const stateRules = (active.trace.stateMeta || currentRoleStateConfig())
           .sort((a, b) => a.priority - b.priority)
           .map(
             (state) =>
-              `${state.label} (${state.priorityBand}, 优先级 ${state.priority}): ${state.rangeText}\n数值感知：${state.perception}`
+              `${state.label} (${state.priorityBand}, 优先级 ${state.priority}): ${buildRangeText(
+                state.range
+              )}\n数值感知：${state.perception}`
           )
           .join("\n\n");
 
@@ -1475,6 +2600,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
                 round: index + 1,
                 promptOverrides: currentPromptOverrides(),
                 kConfig: currentKConfig(),
+                roleStateConfig: currentRoleStateConfig(),
               }),
             });
             const data = await readApiResponse(response);
@@ -1515,6 +2641,56 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
         }
       }
 
+      function startAutoEvaluationSession(round) {
+        autoEvaluationCounter += 1;
+        const session = {
+          id: Date.now() + autoEvaluationCounter,
+          sessionNo: autoEvaluationCounter,
+          roundId: round.id,
+          roundNo: round.roundNo,
+          userInput: round.trace?.userInput || "",
+          inProgress: true,
+          error: "",
+          result: null,
+        };
+
+        autoEvaluationSessions.unshift(session);
+        renderAutoEvaluationSessions();
+
+        (async () => {
+          try {
+            const replyState = round.trace?.reply?.state || round.trace?.routes?.primary;
+            const response = await fetch("/api/evaluate-message", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                stateKey: replyState?.label || "未命中状态",
+                directorNotePrompt:
+                  replyState?.perception || "当前未命中状态，默认保持克制、理性、审慎。",
+                userMessage: round.trace?.userInput || "",
+                aiMessage: round.assistant?.content || "",
+                promptOverrides: currentPromptOverrides(),
+              }),
+            });
+            const data = await readApiResponse(response);
+            if (!response.ok) {
+              throw new Error(
+                data.error?.message ||
+                  data.error ||
+                  (typeof data === "string" ? data : JSON.stringify(data))
+              );
+            }
+
+            session.result = data;
+          } catch (error) {
+            session.error = error instanceof Error ? error.message : String(error);
+          } finally {
+            session.inProgress = false;
+            renderAutoEvaluationSessions();
+          }
+        })();
+      }
+
       async function send() {
         const text = inputEl.value.trim();
         if (!text) return;
@@ -1536,6 +2712,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
               currentIdt,
               promptOverrides: currentPromptOverrides(),
               kConfig: currentKConfig(),
+              roleStateConfig: currentRoleStateConfig(),
             }),
           });
           const data = await readApiResponse(response);
@@ -1571,6 +2748,8 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
           roundTraces.unshift(round);
           selectedRoundId = round.id;
           renderTrace();
+          renderAutoEvaluationSessions();
+          startAutoEvaluationSession(round);
         } catch (error) {
           loading.remove();
           showErr(error instanceof Error ? error.message : String(error));
@@ -1581,6 +2760,9 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       }
 
       sendBtn.addEventListener("click", send);
+      appTabEmotionStrategyEl.addEventListener("click", () => setActiveAppTab("emotionStrategy"));
+      appTabRoleFengrongEl.addEventListener("click", () => setActiveAppTab("roleFengrong"));
+      appTabRoleDianjingEl.addEventListener("click", () => setActiveAppTab("roleDianjing"));
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
       tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));
@@ -1597,6 +2779,8 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
           showErr(error instanceof Error ? error.message : String(error));
         })
         .finally(() => {
+          renderAutoEvaluationSessions();
+          renderAppView();
           renderTrace();
         });
     </script>
