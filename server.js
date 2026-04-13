@@ -583,7 +583,7 @@ async function callArk(apiKey, messages, options = {}) {
 
 async function evaluateReply(apiKey, input, promptOverrides) {
   const call = await callArk(apiKey, buildEvaluationMessages(input, promptOverrides), {
-    max_tokens: 260,
+    max_tokens: 180,
     reasoning_effort: "low",
   });
   const parsed = parseEvaluation(call.content);
@@ -617,7 +617,7 @@ function cloneMessages(messages) {
 
 async function scoreUserMessage(apiKey, userMessage, promptOverrides) {
   const scoreCall = await callArk(apiKey, buildScoreMessages(userMessage, promptOverrides), {
-    max_tokens: 220,
+    max_tokens: 160,
     reasoning_effort: "low",
   });
   const parsed = parseQScores(scoreCall.content);
@@ -661,14 +661,16 @@ async function simulateEvaluationRound(
   history.push({ role: "user", content: userMessage });
 
   const replyContext = buildReplyMessages(history, simulatedIdt, routeBefore, promptOverrides);
-  const assistantCall = await callArk(apiKey, replyContext.messages);
+  const assistantCall = await callArk(apiKey, replyContext.messages, {
+    max_tokens: 260,
+    reasoning_effort: "low",
+  });
   const assistantMessage = assistantCall.content;
 
   history.push({ role: "assistant", content: assistantMessage });
 
-  let evaluation;
-  try {
-    evaluation = await evaluateReply(
+  const [evaluationSettled, scoreSettled] = await Promise.allSettled([
+    evaluateReply(
       apiKey,
       {
         stateKey: routeBefore.primary?.label || "未命中状态",
@@ -678,8 +680,24 @@ async function simulateEvaluationRound(
         aiMessage: assistantMessage,
       },
       promptOverrides
-    );
-  } catch (error) {
+    ),
+    scoreUserMessage(apiKey, userMessage, promptOverrides),
+  ]);
+
+  if (evaluationSettled.status === "rejected") {
+    const fallbackScore =
+      scoreSettled.status === "fulfilled"
+        ? scoreSettled.value
+        : {
+            scoring: null,
+            pad: null,
+            idtDelta: null,
+          };
+    const fallbackNextIdt =
+      fallbackScore.pad && fallbackScore.idtDelta
+        ? calcNextIdt(simulatedIdt, fallbackScore.idtDelta)
+        : simulatedIdt;
+
     return {
       detail: {
         round: roundNumber,
@@ -688,38 +706,41 @@ async function simulateEvaluationRound(
         routeBefore,
         idt: {
           prev: simulatedIdt,
-          delta: null,
-          next: simulatedIdt,
+          delta: fallbackScore.idtDelta,
+          next: fallbackNextIdt,
         },
-        scoring: null,
-        pad: null,
-        error: error instanceof Error ? error.message : "评测失败",
+        scoring: fallbackScore.scoring,
+        pad: fallbackScore.pad,
+        error:
+          evaluationSettled.reason instanceof Error
+            ? evaluationSettled.reason.message
+            : "评测失败",
       },
       nextMessages: history,
-      nextIdt: simulatedIdt,
+      nextIdt: fallbackNextIdt,
     };
   }
 
-  let scoreResult;
-  try {
-    scoreResult = await scoreUserMessage(apiKey, userMessage, promptOverrides);
-  } catch (error) {
-    scoreResult = {
-      scoring: {
-        input: userMessage,
-        rawOutput: "",
-        parsedOutput: null,
-        qScores: null,
-        summary: "",
-        reasoning: "",
-        latencyMs: null,
-        usage: null,
-        error: error instanceof Error ? error.message : "评分失败",
-      },
-      pad: null,
-      idtDelta: null,
-    };
-  }
+  const evaluation = evaluationSettled.value;
+  const scoreResult =
+    scoreSettled.status === "fulfilled"
+      ? scoreSettled.value
+      : {
+          scoring: {
+            input: userMessage,
+            rawOutput: "",
+            parsedOutput: null,
+            qScores: null,
+            summary: "",
+            reasoning: "",
+            latencyMs: null,
+            usage: null,
+            error:
+              scoreSettled.reason instanceof Error ? scoreSettled.reason.message : "评分失败",
+          },
+          pad: null,
+          idtDelta: null,
+        };
 
   const idtPrev = simulatedIdt;
   const idtNext =
