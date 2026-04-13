@@ -8,8 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3456;
 
-const ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3";
-const MODEL_ID = "doubao-seed-2-0-lite-260215";
+const ARK_BASE = process.env.ARK_BASE || "https://ark.cn-beijing.volces.com/api/v3";
+const MODEL_ID = process.env.DOUBAO_MODEL || "doubao-seed-2-0-lite-260215";
+const AUTO_EVAL_MODEL_ID = process.env.AUTO_EVAL_MODEL || MODEL_ID;
+const ROLE_GEN_MODEL_ID = process.env.ROLE_GEN_MODEL || AUTO_EVAL_MODEL_ID;
 const INITIAL_IDT = { i: 15, d: 80, t: 30 };
 const DEFAULT_K_CONFIG = { ki: 1, kd: 1, kt: 1 };
 const Q_KEYS = Array.from({ length: 12 }, (_, index) => `q${index + 1}`);
@@ -323,6 +325,8 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     service: "doubao-chat-demo",
     model: MODEL_ID,
+    autoEvalModel: AUTO_EVAL_MODEL_ID,
+    roleGenModel: ROLE_GEN_MODEL_ID,
     hasArkApiKey: Boolean(process.env.ARK_API_KEY),
     timestamp: new Date().toISOString(),
   });
@@ -862,6 +866,7 @@ async function callArk(apiKey, messages, options = {}) {
 
 async function evaluateReply(apiKey, input, promptOverrides) {
   const call = await callArk(apiKey, buildEvaluationMessages(input, promptOverrides), {
+    model: AUTO_EVAL_MODEL_ID,
     max_tokens: 180,
     reasoning_effort: "low",
   });
@@ -896,6 +901,7 @@ function cloneMessages(messages) {
 
 async function scoreUserMessage(apiKey, userMessage, promptOverrides, kConfig) {
   const scoreCall = await callArk(apiKey, buildScoreMessages(userMessage, promptOverrides), {
+    model: AUTO_EVAL_MODEL_ID,
     max_tokens: 160,
     reasoning_effort: "low",
   });
@@ -1378,13 +1384,14 @@ app.post("/api/role-fengrong", async (req, res) => {
 
   try {
     const fengrongCall = await callArk(apiKey, buildFengrongMessages(input, rolePromptOverrides), {
+      model: ROLE_GEN_MODEL_ID,
       max_tokens: 1800,
       reasoning_effort: "low",
     });
     const charSet = String(fengrongCall.content || "").trim();
 
     res.json({
-      model: MODEL_ID,
+      model: ROLE_GEN_MODEL_ID,
       input,
       charSet,
       trace: {
@@ -1428,13 +1435,14 @@ app.post("/api/role-dianjing", async (req, res) => {
 
   try {
     const dianjingCall = await callArk(apiKey, buildDianjingMessages(charSet, rolePromptOverrides), {
+      model: ROLE_GEN_MODEL_ID,
       max_tokens: 1200,
       reasoning_effort: "low",
     });
     const dianjingParsed = parseRoleDianjingOutput(dianjingCall.content);
 
     res.json({
-      model: MODEL_ID,
+      model: ROLE_GEN_MODEL_ID,
       input: isCompleteRoleGlazeInput(input) ? input : null,
       charSet,
       dianjing: {
@@ -1475,19 +1483,21 @@ app.post("/api/role-glaze", async (req, res) => {
 
   try {
     const fengrongCall = await callArk(apiKey, buildFengrongMessages(input, rolePromptOverrides), {
+      model: ROLE_GEN_MODEL_ID,
       max_tokens: 1800,
       reasoning_effort: "low",
     });
     const charSet = String(fengrongCall.content || "").trim();
 
     const dianjingCall = await callArk(apiKey, buildDianjingMessages(charSet, rolePromptOverrides), {
+      model: ROLE_GEN_MODEL_ID,
       max_tokens: 1200,
       reasoning_effort: "low",
     });
     const dianjingParsed = parseRoleDianjingOutput(dianjingCall.content);
 
     res.json({
-      model: MODEL_ID,
+      model: ROLE_GEN_MODEL_ID,
       input,
       charSet,
       dianjing: {
@@ -1528,6 +1538,8 @@ if (isDirectRun) {
   app.listen(PORT, () => {
     console.log(`Open http://localhost:${PORT}`);
     console.log(`Model: ${MODEL_ID}`);
+    console.log(`Auto eval model: ${AUTO_EVAL_MODEL_ID}`);
+    console.log(`Role gen model: ${ROLE_GEN_MODEL_ID}`);
   });
 }
 
