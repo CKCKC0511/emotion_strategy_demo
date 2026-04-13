@@ -512,6 +512,7 @@
           <div class="trace-tabs">
             <button type="button" class="trace-tab active" id="tabNodes">节点可视化</button>
             <button type="button" class="trace-tab" id="tabEvaluation">评测</button>
+            <button type="button" class="trace-tab" id="tabRoleSettings">角色设定</button>
             <button type="button" class="trace-tab" id="tabPrompts">修改提示词</button>
           </div>
           <div class="trace-body" id="traceBody">
@@ -578,6 +579,7 @@
       const traceMetaEl = document.getElementById("traceMeta");
       const tabNodesEl = document.getElementById("tabNodes");
       const tabEvaluationEl = document.getElementById("tabEvaluation");
+      const tabRoleSettingsEl = document.getElementById("tabRoleSettings");
       const tabPromptsEl = document.getElementById("tabPrompts");
 
       /** @type {{role:string,content:string}[]} */
@@ -750,6 +752,7 @@
         activeTraceTab = nextTab;
         tabNodesEl.classList.toggle("active", nextTab === "nodes");
         tabEvaluationEl.classList.toggle("active", nextTab === "evaluation");
+        tabRoleSettingsEl.classList.toggle("active", nextTab === "roleSettings");
         tabPromptsEl.classList.toggle("active", nextTab === "prompts");
         renderTrace();
       }
@@ -948,31 +951,12 @@ ${item.averageScore}`;
             </div>
             <div class="node-body">
               <div class="chip-row">
-                <span class="chip">ki / kd / kt 可调</span>
                 <span class="chip">聊天回复</span>
                 <span class="chip">Q1~Q12 打分</span>
                 <span class="chip">模拟用户</span>
                 <span class="chip">评测</span>
               </div>
               <div class="muted">修改后会自动用于下一次聊天或评测请求，刷新页面后恢复默认。</div>
-              <div>
-                <div class="label">IDT 系数配置</div>
-                <div class="control-row">
-                  <label for="kInputKi">ki</label>
-                  <input id="kInputKi" type="number" step="0.1" value="${escapeHtml(
-                    currentKConfig().ki
-                  )}" />
-                  <label for="kInputKd">kd</label>
-                  <input id="kInputKd" type="number" step="0.1" value="${escapeHtml(
-                    currentKConfig().kd
-                  )}" />
-                  <label for="kInputKt">kt</label>
-                  <input id="kInputKt" type="number" step="0.1" value="${escapeHtml(
-                    currentKConfig().kt
-                  )}" />
-                  <button type="button" id="resetKConfig">恢复默认 k 值</button>
-                </div>
-              </div>
               <div>
                 <div class="label">聊天回复提示词</div>
                 <textarea id="promptReply" rows="18">${escapeHtml(prompts.replyPrompt)}</textarea>
@@ -1011,6 +995,37 @@ ${item.averageScore}`;
         `;
       }
 
+      function renderRoleSettingsEditor() {
+        const currentK = currentKConfig();
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">角色设定</div>
+              <div class="node-meta">当前页面会话内生效，聊天与自动评测共用</div>
+            </div>
+            <div class="node-body">
+              <div class="chip-row">
+                <span class="chip">IDT 系数配置</span>
+                <span class="chip">聊天与评测同步</span>
+              </div>
+              <div class="muted">修改后会作用到普通聊天和自动化评测的 IDT Delta 计算，刷新页面后恢复默认。</div>
+              <div>
+                <div class="label">IDT 系数配置</div>
+                <div class="control-row">
+                  <label for="kInputKi">ki</label>
+                  <input id="kInputKi" type="number" step="0.1" value="${escapeHtml(currentK.ki)}" />
+                  <label for="kInputKd">kd</label>
+                  <input id="kInputKd" type="number" step="0.1" value="${escapeHtml(currentK.kd)}" />
+                  <label for="kInputKt">kt</label>
+                  <input id="kInputKt" type="number" step="0.1" value="${escapeHtml(currentK.kt)}" />
+                  <button type="button" id="resetKConfig">恢复默认 k 值</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
       function bindPromptEditorEvents() {
         if (!promptOverrides || !promptDefaults) return;
 
@@ -1029,6 +1044,30 @@ ${item.averageScore}`;
           });
         });
 
+        document.querySelectorAll("[data-reset-prompt]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-reset-prompt");
+            if (!key) return;
+            promptOverrides[key] = promptDefaults[key];
+            renderTrace();
+          });
+        });
+
+        const resetAllButton = document.getElementById("resetAllPrompts");
+        if (resetAllButton) {
+          resetAllButton.addEventListener("click", () => {
+            promptOverrides = {
+              replyPrompt: promptDefaults.replyPrompt,
+              scorePrompt: promptDefaults.scorePrompt,
+              evaluationPrompt: promptDefaults.evaluationPrompt,
+              userSimulationPrompt: promptDefaults.userSimulationPrompt,
+            };
+            renderTrace();
+          });
+        }
+      }
+
+      function bindRoleSettingsEvents() {
         const kFieldMap = {
           kInputKi: "ki",
           kInputKd: "kd",
@@ -1042,29 +1081,6 @@ ${item.averageScore}`;
             kConfig[key] = event.target.value;
           });
         });
-
-        document.querySelectorAll("[data-reset-prompt]").forEach((button) => {
-          button.addEventListener("click", () => {
-            const key = button.getAttribute("data-reset-prompt");
-            if (!key) return;
-            promptOverrides[key] = promptDefaults[key];
-            renderTrace();
-          });
-        });
-
-        const resetAllButton = document.getElementById("resetAllPrompts");
-        if (resetAllButton) {
-          resetAllButton.addEventListener("click", () => {
-            kConfig = { ki: 1, kd: 1, kt: 1 };
-            promptOverrides = {
-              replyPrompt: promptDefaults.replyPrompt,
-              scorePrompt: promptDefaults.scorePrompt,
-              evaluationPrompt: promptDefaults.evaluationPrompt,
-              userSimulationPrompt: promptDefaults.userSimulationPrompt,
-            };
-            renderTrace();
-          });
-        }
 
         const resetKButton = document.getElementById("resetKConfig");
         if (resetKButton) {
@@ -1085,17 +1101,10 @@ ${item.averageScore}`;
             <section class="node">
               <div class="node-head">
                 <div class="node-title">评测控制台</div>
-                <div class="node-meta">${escapeHtml(progressText || "先选择轮数，再开始自动跑评测")}</div>
+                <div class="node-meta">${escapeHtml(progressText || "固定按 10 轮自动跑评测")}</div>
               </div>
               <div class="node-body">
                 <div class="control-row">
-                  <label for="evalRounds">评测轮数</label>
-                  <select id="evalRounds">
-                    <option value="1" ${evaluationRounds === 1 ? "selected" : ""}>1 轮</option>
-                    <option value="3" ${evaluationRounds === 3 ? "selected" : ""}>3 轮</option>
-                    <option value="5" ${evaluationRounds === 5 ? "selected" : ""}>5 轮</option>
-                    <option value="10" ${evaluationRounds === 10 ? "selected" : ""}>10 轮</option>
-                  </select>
                   <button type="button" id="runEvalBatch" ${isBatchLoading ? "disabled" : ""}>
                     ${isBatchLoading ? "评测中..." : "自动跑 10 轮评测"}
                   </button>
@@ -1160,18 +1169,11 @@ ${item.averageScore}`;
             <div class="node-head">
               <div class="node-title">评测控制台</div>
               <div class="node-meta">${escapeHtml(
-                progressText || "无须先发送消息，可直接从初始 IDT 自动模拟多轮对话"
+                progressText || "无须先发送消息，固定按 10 轮自动模拟评测"
               )}</div>
             </div>
             <div class="node-body">
               <div class="control-row">
-                <label for="evalRounds">评测轮数</label>
-                <select id="evalRounds">
-                  <option value="1" ${evaluationRounds === 1 ? "selected" : ""}>1 轮</option>
-                  <option value="3" ${evaluationRounds === 3 ? "selected" : ""}>3 轮</option>
-                  <option value="5" ${evaluationRounds === 5 ? "selected" : ""}>5 轮</option>
-                  <option value="10" ${evaluationRounds === 10 ? "selected" : ""}>10 轮</option>
-                </select>
                 <button type="button" id="runEvalBatch" ${isBatchLoading ? "disabled" : ""}>
                   ${isBatchLoading ? "评测中..." : "自动跑 10 轮评测"}
                 </button>
@@ -1230,7 +1232,10 @@ ${item.averageScore}`;
       }
 
       function renderTrace() {
-        const singlePaneMode = activeTraceTab === "prompts" || activeTraceTab === "evaluation";
+        const singlePaneMode =
+          activeTraceTab === "prompts" ||
+          activeTraceTab === "evaluation" ||
+          activeTraceTab === "roleSettings";
         traceBodyEl.classList.toggle("prompts-mode", singlePaneMode);
         traceMainEl.classList.toggle("prompts-mode", singlePaneMode);
         traceSideEl.classList.toggle("hidden", singlePaneMode);
@@ -1241,9 +1246,13 @@ ${item.averageScore}`;
         const active = latestTrace();
         if (!active) {
           traceMetaEl.textContent =
-            activeTraceTab === "prompts" ? "当前修改只在本次页面会话中生效" : "等待第一轮消息";
+            activeTraceTab === "prompts" || activeTraceTab === "roleSettings"
+              ? "当前修改只在本次页面会话中生效"
+              : "等待第一轮消息";
           traceMainEl.innerHTML =
-            activeTraceTab === "prompts"
+            activeTraceTab === "roleSettings"
+              ? renderRoleSettingsEditor()
+              : activeTraceTab === "prompts"
               ? renderPromptEditor()
               : activeTraceTab === "evaluation"
               ? renderStandaloneEvaluationTab()
@@ -1252,20 +1261,17 @@ ${item.averageScore}`;
           if (runEvalBatchBtn) {
             runEvalBatchBtn.addEventListener("click", () => runEvaluationBatch(null));
           }
-          const evalRoundsEl = document.getElementById("evalRounds");
-          if (evalRoundsEl) {
-            evalRoundsEl.addEventListener("change", (event) => {
-              evaluationRounds = Number(event.target.value) || 10;
-            });
-          }
           if (activeTraceTab === "prompts") {
             bindPromptEditorEvents();
+          }
+          if (activeTraceTab === "roleSettings") {
+            bindRoleSettingsEvents();
           }
           return;
         }
 
         traceMetaEl.textContent =
-          activeTraceTab === "prompts"
+          activeTraceTab === "prompts" || activeTraceTab === "roleSettings"
             ? "当前修改只在本次页面会话中生效"
             : `第 ${active.roundNo} 轮，总耗时 ${fmt(active.trace.requestLatencyMs)}ms`;
 
@@ -1289,7 +1295,9 @@ ${item.averageScore}`;
           .join("\n\n");
 
         traceMainEl.innerHTML =
-          activeTraceTab === "prompts"
+          activeTraceTab === "roleSettings"
+            ? renderRoleSettingsEditor()
+            : activeTraceTab === "prompts"
             ? renderPromptEditor()
             : activeTraceTab === "evaluation"
               ? renderEvaluationTab(active)
@@ -1429,14 +1437,11 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
         if (runEvalBatchBtn) {
           runEvalBatchBtn.addEventListener("click", () => runEvaluationBatch(active.id));
         }
-        const evalRoundsEl = document.getElementById("evalRounds");
-        if (evalRoundsEl) {
-          evalRoundsEl.addEventListener("change", (event) => {
-            evaluationRounds = Number(event.target.value) || 10;
-          });
-        }
         if (activeTraceTab === "prompts") {
           bindPromptEditorEvents();
+        }
+        if (activeTraceTab === "roleSettings") {
+          bindRoleSettingsEvents();
         }
       }
 
@@ -1578,6 +1583,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       sendBtn.addEventListener("click", send);
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
+      tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));
       tabPromptsEl.addEventListener("click", () => setActiveTab("prompts"));
       inputEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
