@@ -1673,14 +1673,14 @@ ${session.result.averageScore}`
 
         showErr("");
         roleDianjingResult = null;
-        roleDianjingLoadingStage = "fengrong";
-        roleDianjingMetaEl.textContent = "准备点睛：先生成 cha_set";
+        roleDianjingLoadingStage = "dianjing";
+        roleDianjingMetaEl.textContent = "点睛生成中：正在根据当前输入生成剧本、状态表和状态优先级";
         renderRoleBaseForm({
           formEl: roleDianjingFormEl,
           input: roleDianjingInput,
           actionId: "roleDianjing",
           buttonLabel: "生成点睛结果",
-          loadingLabel: "准备点睛中...",
+          loadingLabel: "点睛生成中...",
           metaText: "基于角色基础信息生成点睛结果",
         });
         bindRoleBaseFormEvents("dianjing");
@@ -1688,24 +1688,7 @@ ${session.result.averageScore}`
         bindRoleDianjingResultEvents();
 
         try {
-          const fengrongResponse = await fetch("/api/role-fengrong", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...roleDianjingInput,
-              rolePromptOverrides: { fengrongPrompt: currentRolePromptOverrides().fengrongPrompt },
-            }),
-          });
-          const fengrongData = await readApiResponse(fengrongResponse);
-          if (!fengrongResponse.ok) {
-            throw new Error(
-              fengrongData.error?.message || fengrongData.error || (typeof fengrongData === "string" ? fengrongData : JSON.stringify(fengrongData))
-            );
-          }
-
-          roleDianjingResult = { ...fengrongData, dianjing: null };
-          roleDianjingLoadingStage = "dianjing";
-          roleDianjingMetaEl.textContent = "点睛生成中：正在生成剧本、状态表和状态优先级";
+          roleDianjingResult = { input: { ...roleDianjingInput }, dianjing: null };
           activeRoleDianjingSubTab = "result";
           renderRoleDianjingResult();
           bindRoleDianjingResultEvents();
@@ -1714,7 +1697,7 @@ ${session.result.averageScore}`
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              charSet: roleDianjingResult.charSet,
+              ...roleDianjingInput,
               rolePromptOverrides: { dianjingPrompt: currentRolePromptOverrides().dianjingPrompt },
             }),
           });
@@ -1726,20 +1709,12 @@ ${session.result.averageScore}`
           }
 
           roleDianjingResult = {
-            ...roleDianjingResult,
-            dianjing: dianjingData.dianjing,
-            trace: {
-              ...(roleDianjingResult.trace || {}),
-              ...(dianjingData.trace || {}),
-            },
+            ...dianjingData,
           };
           roleDianjingMetaEl.textContent = "生成完成：可以查看剧本、状态表、状态优先级或修改提示词";
         } catch (error) {
           showErr(error instanceof Error ? error.message : String(error));
-          roleDianjingMetaEl.textContent =
-            roleDianjingLoadingStage === "dianjing" && roleDianjingResult?.charSet
-              ? "已拿到 cha_set，但点睛失败，请稍后重试"
-              : "生成失败，请检查输入或稍后重试";
+          roleDianjingMetaEl.textContent = "生成失败，请检查输入或稍后重试";
         } finally {
           roleDianjingLoadingStage = "";
           renderRoleBaseForm({
@@ -1787,9 +1762,7 @@ ${session.result.averageScore}`
             actionId: "roleDianjing",
             buttonLabel: "生成点睛结果",
             loadingLabel:
-              roleDianjingLoadingStage === "fengrong"
-                ? "准备点睛中..."
-                : roleDianjingLoadingStage === "dianjing"
+              roleDianjingLoadingStage === "dianjing"
                 ? "点睛生成中..."
                 : "",
             metaText: "基于角色基础信息生成点睛结果",

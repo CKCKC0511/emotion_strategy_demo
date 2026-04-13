@@ -798,6 +798,17 @@ function isCompleteRoleGlazeInput(input) {
   );
 }
 
+function buildRoleInputCharSet(input) {
+  return [
+    "(cha_set)",
+    `name: ${String(input.name || "").trim()}`,
+    `gender: ${String(input.gender || "").trim()}`,
+    `core tags: ${String(input.coreTags || "").trim()}`,
+    `Tagline: ${String(input.tagline || "").trim()}`,
+    `opener: ${String(input.opener || "").trim()}`,
+  ].join("\n");
+}
+
 async function callArk(apiKey, messages, options = {}) {
   const startedAt = Date.now();
   const r = await fetch(`${ARK_BASE}/chat/completions`, {
@@ -1256,45 +1267,10 @@ app.post("/api/chat", async (req, res) => {
 });
 
 app.post("/api/evaluate-batch", async (req, res) => {
-  const apiKey = process.env.ARK_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({
-      error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
-    });
-  }
-
-  const {
-    messages,
-    currentIdt,
-    rounds = 10,
-    promptOverrides: rawPromptOverrides,
-    kConfig: rawKConfig,
-    roleStateConfig: rawRoleStateConfig,
-  } = req.body || {};
-
-  if (!Array.isArray(messages)) {
-    return res.status(400).json({ error: "messages 必须为数组" });
-  }
-
-  const totalRounds = clamp(Number(rounds) || 10, 1, 20);
-  const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
-  const kConfig = normalizeKConfig(rawKConfig);
-  const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
-  try {
-    const result = await simulateEvaluationRounds(apiKey, {
-      messages,
-      currentIdt,
-      rounds: totalRounds,
-      promptOverrides,
-      kConfig,
-      stateDefinitions,
-    });
-    res.json(result);
-  } catch (error) {
-    res.status(502).json({
-      error: error instanceof Error ? error.message : "批量评测失败",
-    });
-  }
+  res.status(410).json({
+    error:
+      "批量评测已改为前端串行调用 /api/evaluate-round，以避免 Vercel 超时。请刷新页面后重试自动评测。",
+  });
 });
 
 app.post("/api/evaluate-round", async (req, res) => {
@@ -1427,10 +1403,20 @@ app.post("/api/role-dianjing", async (req, res) => {
     });
   }
 
-  const { charSet } = req.body || {};
+  const input = readRoleGlazeInput(req.body);
+  const rawCharSet = req.body?.charSet;
   const rolePromptOverrides = normalizeRolePromptOverrides(req.body?.rolePromptOverrides);
-  if (typeof charSet !== "string" || !charSet.trim()) {
-    return res.status(400).json({ error: "charSet 为必填项" });
+  const charSet =
+    typeof rawCharSet === "string" && rawCharSet.trim()
+      ? rawCharSet.trim()
+      : isCompleteRoleGlazeInput(input)
+        ? buildRoleInputCharSet(input)
+        : "";
+
+  if (!charSet) {
+    return res.status(400).json({
+      error: "charSet 为必填项，或提供完整的 name、gender、coreTags、tagline、opener",
+    });
   }
 
   try {
@@ -1442,6 +1428,8 @@ app.post("/api/role-dianjing", async (req, res) => {
 
     res.json({
       model: MODEL_ID,
+      input: isCompleteRoleGlazeInput(input) ? input : null,
+      charSet,
       dianjing: {
         script: dianjingParsed.script,
         stateTable: dianjingParsed.stateTable,
