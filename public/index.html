@@ -303,8 +303,8 @@
         background: rgba(91, 140, 255, 0.18);
         border-color: rgba(91, 140, 255, 0.55);
       }
-      .app-view[hidden] {
-        display: none;
+      [hidden] {
+        display: none !important;
       }
       .trace-body {
         display: grid;
@@ -644,7 +644,6 @@
       <div class="app-tabs">
         <button type="button" class="app-tab active" id="appTabEmotionStrategy">情感策略demo</button>
         <button type="button" class="app-tab" id="appTabRoleFengrong">丰荣</button>
-        <button type="button" class="app-tab" id="appTabRoleDianjing">点睛</button>
         <button type="button" class="app-tab" id="appTabRelationStrategy">关系策略demo</button>
         <button type="button" class="app-tab" id="appTabSimpleChat">无策略对话</button>
       </div>
@@ -685,6 +684,7 @@
             <button type="button" class="trace-tab" id="tabEvaluation">评测</button>
             <button type="button" class="trace-tab" id="tabRoleSettings">角色设定</button>
             <button type="button" class="trace-tab" id="tabPrompts">修改提示词</button>
+            <button type="button" class="trace-tab" id="tabDianjing">情感策略点睛</button>
           </div>
           <div class="trace-body" id="traceBody">
             <div class="trace-main" id="traceMain"></div>
@@ -693,6 +693,13 @@
               <div class="panel-meta">点击右侧条目切换查看某一轮的节点详情</div>
               <div id="historyList"></div>
             </aside>
+            <div id="roleDianjingView" hidden style="width:100%;overflow-y:auto;padding:8px 16px;">
+              <div class="panel-meta" id="roleDianjingMeta" style="margin-bottom:10px;">输入角色基础信息后，生成剧本、状态表与状态优先级</div>
+              <div id="roleDianjingWrap" style="display:flex;flex-direction:column;gap:16px;">
+                <div class="role-glaze-form" id="roleDianjingForm" style="max-width:600px;"></div>
+                <div id="roleDianjingResult"></div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -711,18 +718,6 @@
         </section>
       </div>
 
-      <div class="app-view" id="roleDianjingView" hidden>
-        <section class="panel role-glaze-panel">
-          <div class="panel-header">
-            <div class="panel-title">点睛</div>
-            <div class="panel-meta" id="roleDianjingMeta">输入角色基础信息后，生成剧本、状态表与状态优先级</div>
-          </div>
-          <div class="role-glaze-wrap" id="roleDianjingWrap">
-            <div class="role-glaze-form" id="roleDianjingForm"></div>
-            <div id="roleDianjingResult"></div>
-          </div>
-        </section>
-      </div>
 
       <div class="app-view" id="relationStrategyView" hidden>
         <section class="panel" style="padding:18px;">
@@ -888,10 +883,23 @@
         });
 
         roleStateConfig = nextConfig;
-        activeAppTab = "emotionStrategy";
-        activeTraceTab = "roleSettings";
-        renderAppView();
-        renderTrace();
+
+        if (roleDianjingInput.name?.trim()) {
+          emotionCharName = roleDianjingInput.name.trim();
+        }
+        if (roleDianjingInput.tagline?.trim()) {
+          emotionBaseProfile = roleDianjingInput.tagline.trim();
+        }
+
+        const syncBtn = document.getElementById("syncDianjingToEmotionStrategy");
+        if (syncBtn) {
+          syncBtn.textContent = "设置完成 ✓";
+          syncBtn.disabled = true;
+          setTimeout(() => {
+            syncBtn.textContent = "同步设置到情感策略demo";
+            syncBtn.disabled = false;
+          }, 3000);
+        }
       }
 
       const msgsEl = document.getElementById("msgs");
@@ -908,9 +916,9 @@
       const traceMetaEl = document.getElementById("traceMeta");
       const appTabEmotionStrategyEl = document.getElementById("appTabEmotionStrategy");
       const appTabRoleFengrongEl = document.getElementById("appTabRoleFengrong");
-      const appTabRoleDianjingEl = document.getElementById("appTabRoleDianjing");
       const appTabRelationStrategyEl = document.getElementById("appTabRelationStrategy");
       const appTabSimpleChatEl = document.getElementById("appTabSimpleChat");
+      const tabDianjingEl = document.getElementById("tabDianjing");
       const simpleChatViewEl = document.getElementById("simpleChatView");
       const emotionStrategyViewEl = document.getElementById("emotionStrategyView");
       const roleFengrongViewEl = document.getElementById("roleFengrongView");
@@ -941,6 +949,8 @@
       let roundCounter = 0;
       let selectedRoundId = null;
       let activeTraceTab = "nodes";
+      let emotionCharName = "恩佐";
+      let emotionBaseProfile = `恩佐，27岁，是一位拥有生物学与犯罪现场调查双学位的独立调查员，曾任城市法医，因厌倦官僚体制而创立"真相追寻者"团队，专接民间悬案与超自然委托。出身学者家庭的他，社会关系简单，习惯游走在文明与未知的交界地带。他的性格底色是沉稳理性与极致的严谨，行动前必定向队友交代多套应急预案，将"带每个人平安回家"视为最高准则。然而，在这副冷静克制的皮囊下，潜藏着对"未被解释之物"近乎狂热的孩童般的热忱。他的说话语速平稳，逻辑严密，常以客观分析切入，惯用句式多为条件假设或推论，口头禅是"万物皆有痕迹"。在日常动作中，他形影不离地带着一本被称作"第三大脑"的旧皮革笔记本，随时记录线索与灵感；勘察现场时，他习惯单膝蹲下，用修长的手指轻触地面或墙壁，通过感知温度与触感来重构现场；当遇到棘手或紧张的状况时，他会无意识地转动左手小指上母亲赠予的银戒；而一旦发现令他兴奋的未知线索，那双灰蓝色的眼睛里瞳孔会如同鹰隼般微微收缩，紧接着嘴角难以自控地扬起一抹狂热的弧度。`;
       let evaluatingBatchRoundId = null;
       let evaluationRounds = 10;
       let standaloneEvaluationBatch = null;
@@ -1167,6 +1177,7 @@
         tabEvaluationEl.classList.toggle("active", nextTab === "evaluation");
         tabRoleSettingsEl.classList.toggle("active", nextTab === "roleSettings");
         tabPromptsEl.classList.toggle("active", nextTab === "prompts");
+        tabDianjingEl.classList.toggle("active", nextTab === "dianjing");
         renderTrace();
       }
 
@@ -1531,19 +1542,8 @@ ${session.result.averageScore}`
       }
 
       function renderRoleDianjingResult() {
-        const isPromptSettings = activeRoleDianjingSubTab === "promptSettings";
-        roleDianjingWrapEl.classList.toggle("prompt-mode", isPromptSettings);
-        roleDianjingResultEl.classList.toggle("prompt-mode", isPromptSettings);
-
-        const subtabs = [
-          { id: "result", label: "点睛结果" },
-          { id: "promptSettings", label: "修改提示词" },
-        ];
-
         let content = `<div class="placeholder">填写左侧信息后，点击“生成点睛结果”。</div>`;
-        if (activeRoleDianjingSubTab === "promptSettings") {
-          content = renderRolePromptEditor("dianjing");
-        } else if (roleDianjingResult) {
+        if (roleDianjingResult) {
           content =
             roleDianjingLoadingStage === "dianjing" && !roleDianjingResult.dianjing
               ? `<div class="placeholder">点睛生成中，结果会在完成后自动显示。</div>`
@@ -1587,20 +1587,7 @@ ${session.result.averageScore}`
                 ].join("");
         }
 
-        roleDianjingResultEl.innerHTML = `
-          <div class="sub-tabs">
-            ${subtabs
-              .map(
-                (item) => `
-                  <button type="button" class="sub-tab ${
-                    activeRoleDianjingSubTab === item.id ? "active" : ""
-                  }" data-role-dianjing-subtab="${item.id}">${escapeHtml(item.label)}</button>
-                `
-              )
-              .join("")}
-          </div>
-          ${content}
-        `;
+        roleDianjingResultEl.innerHTML = content;
       }
 
       function bindRoleBaseFormEvents(kind) {
@@ -1641,15 +1628,6 @@ ${session.result.averageScore}`
       }
 
       function bindRoleDianjingResultEvents() {
-        roleDianjingResultEl.querySelectorAll("[data-role-dianjing-subtab]").forEach((button) => {
-          button.addEventListener("click", () => {
-            activeRoleDianjingSubTab = button.getAttribute("data-role-dianjing-subtab") || "result";
-            renderRoleDianjingResult();
-            bindRoleDianjingResultEvents();
-            bindRolePromptEditorEvents("dianjing");
-          });
-        });
-
         const syncButton = document.getElementById("syncDianjingToEmotionStrategy");
         if (syncButton) {
           syncButton.addEventListener("click", syncDianjingResultToRoleSettings);
@@ -1781,19 +1759,16 @@ ${session.result.averageScore}`
           bindRoleBaseFormEvents("dianjing");
           renderRoleDianjingResult();
           bindRoleDianjingResultEvents();
-          bindRolePromptEditorEvents("dianjing");
         }
       }
 
       function renderAppView() {
         appTabEmotionStrategyEl.classList.toggle("active", activeAppTab === "emotionStrategy");
         appTabRoleFengrongEl.classList.toggle("active", activeAppTab === "roleFengrong");
-        appTabRoleDianjingEl.classList.toggle("active", activeAppTab === "roleDianjing");
         appTabRelationStrategyEl.classList.toggle("active", activeAppTab === "relationStrategy");
         appTabSimpleChatEl.classList.toggle("active", activeAppTab === "simpleChat");
         emotionStrategyViewEl.hidden = activeAppTab !== "emotionStrategy";
         roleFengrongViewEl.hidden = activeAppTab !== "roleFengrong";
-        roleDianjingViewEl.hidden = activeAppTab !== "roleDianjing";
         relationStrategyViewEl.hidden = activeAppTab !== "relationStrategy";
         simpleChatViewEl.hidden = activeAppTab !== "simpleChat";
 
@@ -1812,22 +1787,8 @@ ${session.result.averageScore}`
           bindRolePromptEditorEvents("fengrong");
         }
 
-        if (activeAppTab === "roleDianjing") {
-          renderRoleBaseForm({
-            formEl: roleDianjingFormEl,
-            input: roleDianjingInput,
-            actionId: "roleDianjing",
-            buttonLabel: "生成点睛结果",
-            loadingLabel:
-              roleDianjingLoadingStage === "dianjing"
-                ? "点睛生成中..."
-                : "",
-            metaText: "基于角色基础信息生成点睛结果",
-          });
-          renderRoleDianjingResult();
-          bindRoleBaseFormEvents("dianjing");
-          bindRoleDianjingResultEvents();
-          bindRolePromptEditorEvents("dianjing");
+        if (activeAppTab === "emotionStrategy") {
+          renderTrace();
         }
 
         if (activeAppTab === "relationStrategy") {
@@ -1848,7 +1809,7 @@ ${session.result.averageScore}`
 
       function renderRelationSubTabs() {
         const tabs = [
-          { id: "init", label: "关系初始阶段判定与定义" },
+          { id: "init", label: "关系策略点睛" },
           { id: "chat", label: "关系策略对话" },
           { id: "prompts", label: "修改提示词" },
         ];
@@ -2658,6 +2619,7 @@ ${session.result.averageScore}`
                 <span class="chip">Q1~Q12 打分</span>
                 <span class="chip">模拟用户</span>
                 <span class="chip">评测</span>
+                <span class="chip">点睛提示词</span>
               </div>
               <div class="muted">修改后会自动用于下一次聊天或评测请求，刷新页面后恢复默认。</div>
               <div>
@@ -2690,6 +2652,13 @@ ${session.result.averageScore}`
                 )}</textarea>
                 <div class="control-row" style="margin-top:10px;">
                   <button type="button" data-reset-prompt="evaluationPrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">点睛提示词</div>
+                <textarea id="promptDianjing" rows="20">${escapeHtml(currentRolePromptOverrides().dianjingPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-prompt="dianjingPrompt">恢复默认</button>
                   <button type="button" id="resetAllPrompts">全部恢复默认</button>
                 </div>
               </div>
@@ -2834,11 +2803,22 @@ ${session.result.averageScore}`
           });
         });
 
+        const dianjingField = document.getElementById("promptDianjing");
+        if (dianjingField && rolePromptOverrides) {
+          dianjingField.addEventListener("input", (event) => {
+            rolePromptOverrides.dianjingPrompt = event.target.value;
+          });
+        }
+
         document.querySelectorAll("[data-reset-prompt]").forEach((button) => {
           button.addEventListener("click", () => {
             const key = button.getAttribute("data-reset-prompt");
             if (!key) return;
-            promptOverrides[key] = promptDefaults[key];
+            if (key === "dianjingPrompt" && rolePromptOverrides && rolePromptDefaults) {
+              rolePromptOverrides.dianjingPrompt = rolePromptDefaults.dianjingPrompt;
+            } else {
+              promptOverrides[key] = promptDefaults[key];
+            }
             renderTrace();
           });
         });
@@ -2852,6 +2832,9 @@ ${session.result.averageScore}`
               evaluationPrompt: promptDefaults.evaluationPrompt,
               userSimulationPrompt: promptDefaults.userSimulationPrompt,
             };
+            if (rolePromptOverrides && rolePromptDefaults) {
+              rolePromptOverrides.dianjingPrompt = rolePromptDefaults.dianjingPrompt;
+            }
             renderTrace();
           });
         }
@@ -3123,14 +3106,42 @@ ${session.result.averageScore}`
         `;
       }
 
+      function renderDianjingInTracePanel() {
+        renderRoleBaseForm({
+          formEl: roleDianjingFormEl,
+          input: roleDianjingInput,
+          actionId: "roleDianjing",
+          buttonLabel: "生成点睛结果",
+          loadingLabel:
+            roleDianjingLoadingStage === "dianjing"
+              ? "点睛生成中..."
+              : "",
+          metaText: "基于角色基础信息生成点睛结果",
+        });
+        renderRoleDianjingResult();
+        bindRoleBaseFormEvents("dianjing");
+        bindRoleDianjingResultEvents();
+      }
+
       function renderTrace() {
+        const isDianjing = activeTraceTab === "dianjing";
         const singlePaneMode =
           activeTraceTab === "prompts" ||
           activeTraceTab === "evaluation" ||
-          activeTraceTab === "roleSettings";
+          activeTraceTab === "roleSettings" ||
+          isDianjing;
         traceBodyEl.classList.toggle("prompts-mode", singlePaneMode);
         traceMainEl.classList.toggle("prompts-mode", singlePaneMode);
         traceSideEl.classList.toggle("hidden", singlePaneMode);
+
+        roleDianjingViewEl.hidden = !isDianjing;
+        traceMainEl.hidden = isDianjing;
+        if (isDianjing) {
+          traceMainEl.innerHTML = "";
+          traceMetaEl.textContent = "输入角色基础信息后，生成剧本、状态表与状态优先级";
+          renderDianjingInTracePanel();
+          return;
+        }
 
         renderSummary();
         renderHistory();
@@ -3370,6 +3381,8 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
                 promptOverrides: currentPromptOverrides(),
                 kConfig: currentKConfig(),
                 roleStateConfig: currentRoleStateConfig(),
+                baseProfile: emotionBaseProfile,
+                charName: emotionCharName,
               }),
             });
             const data = await readApiResponse(response);
@@ -3482,6 +3495,8 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
               promptOverrides: currentPromptOverrides(),
               kConfig: currentKConfig(),
               roleStateConfig: currentRoleStateConfig(),
+              baseProfile: emotionBaseProfile,
+              charName: emotionCharName,
             }),
           });
           const data = await readApiResponse(response);
@@ -3531,13 +3546,13 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       sendBtn.addEventListener("click", send);
       appTabEmotionStrategyEl.addEventListener("click", () => setActiveAppTab("emotionStrategy"));
       appTabRoleFengrongEl.addEventListener("click", () => setActiveAppTab("roleFengrong"));
-      appTabRoleDianjingEl.addEventListener("click", () => setActiveAppTab("roleDianjing"));
       appTabRelationStrategyEl.addEventListener("click", () => setActiveAppTab("relationStrategy"));
       appTabSimpleChatEl.addEventListener("click", () => setActiveAppTab("simpleChat"));
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
       tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));
       tabPromptsEl.addEventListener("click", () => setActiveTab("prompts"));
+      tabDianjingEl.addEventListener("click", () => setActiveTab("dianjing"));
       inputEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();

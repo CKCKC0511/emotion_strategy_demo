@@ -117,7 +117,7 @@ const USER_SIMULATION_PROMPT = `你现在扮演一个正在和角色「恩佐」
 - 不要重复上一轮原话，不要只输出“嗯”“哦”这种无效回复
 - 让对话继续推进，给恩佐留下可回应的空间
 - 不要代替恩佐说话`;
-const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演角色「恩佐」。
+const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演角色「{{char_name}}」。
 请根据以下角色设定，完全代入角色身份与用户进行对话。
 
 ## 目标：生成角色对话
@@ -239,7 +239,7 @@ const DIANJING_PROMPT_TEMPLATE = `# Role
 请严格按照模块内容要求输出，语言必须极其精炼、画面感强，绝对不能出现套路化的“油腻霸总”或“无脑舔狗”发言。
 
 ## 任务一
-step1: 根据角色设定{{cha_set}}以及以下4个AI状态的含义，定义每个状态对应的行动指令（direct_prompt），包括语气（约10个字）和动作描写方向（约15个字）。
+step1: 根据角色设定{{cha_set}}以及以下4个AI状态的含义，定义每个状态对应的行动指令（direct_prompt），包括语气（约30个字）和动作描写方向（约30个字）。
 1. 日常兜底: 展现日常人设
 2. 试探推拉: 经常会出现拉扯的发言来试探两人之间的关系，并尝试推进
 3. 失控破防: 掌控权被剥夺后的应激反应（攻击或恐慌）
@@ -1026,7 +1026,7 @@ function matchStates(idt, stateDefinitions = STATE_DEFINITIONS) {
   };
 }
 
-function buildReplyMessages(history, currentIdt, routeInfo, promptOverrides) {
+function buildReplyMessages(history, currentIdt, routeInfo, promptOverrides, baseProfile, charName) {
   const currentState = routeInfo.primary?.label || "日常兜底";
   const currentPerception =
     routeInfo.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。";
@@ -1038,7 +1038,8 @@ function buildReplyMessages(history, currentIdt, routeInfo, promptOverrides) {
         .join(", ")}。当前优先状态：${routeInfo.primary?.label || "无"}。`
     : "当前未命中其他状态区间，已自动回退到日常兜底。";
   const systemPrompt = applyTemplate(promptOverrides.replyPrompt, {
-    base_profile: BASE_PROFILE,
+    char_name: charName || "恩佐",
+    base_profile: baseProfile || BASE_PROFILE,
     director_note_prompt: currentPerception,
     state_key: currentState,
     current_perception: currentPerception,
@@ -1266,7 +1267,7 @@ async function scoreUserMessage(apiKey, userMessage, promptOverrides, kConfig) {
 
 async function simulateEvaluationRound(
   apiKey,
-  { messages, currentIdt, promptOverrides, kConfig, stateDefinitions, roundNumber = 1 }
+  { messages, currentIdt, promptOverrides, kConfig, stateDefinitions, roundNumber = 1, baseProfile, charName }
 ) {
   const history = cloneMessages(messages);
   const simulatedIdt = normalizeIdt(currentIdt);
@@ -1283,7 +1284,7 @@ async function simulateEvaluationRound(
   const userMessage = String(simulatedUserCall.content || "").trim();
   history.push({ role: "user", content: userMessage });
 
-  const replyContext = buildReplyMessages(history, simulatedIdt, routeBefore, promptOverrides);
+  const replyContext = buildReplyMessages(history, simulatedIdt, routeBefore, promptOverrides, baseProfile, charName);
   const assistantCall = await callArk(apiKey, replyContext.messages, {
     max_tokens: 260,
     reasoning_effort: "low",
@@ -1490,6 +1491,8 @@ app.post("/api/chat", async (req, res) => {
     promptOverrides: rawPromptOverrides,
     kConfig: rawKConfig,
     roleStateConfig: rawRoleStateConfig,
+    baseProfile: rawBaseProfile,
+    charName: rawCharName,
   } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages 必须为非空数组" });
@@ -1500,12 +1503,14 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "需要至少一条用户消息" });
   }
 
+  const charName = typeof rawCharName === "string" && rawCharName.trim() ? rawCharName : "恩佐";
+  const baseProfile = typeof rawBaseProfile === "string" && rawBaseProfile.trim() ? rawBaseProfile : BASE_PROFILE;
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   const kConfig = normalizeKConfig(rawKConfig);
   const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
   const prevIdt = normalizeIdt(currentIdt);
   const preRoute = matchStates(prevIdt, stateDefinitions);
-  const replyContext = buildReplyMessages(messages, prevIdt, preRoute, promptOverrides);
+  const replyContext = buildReplyMessages(messages, prevIdt, preRoute, promptOverrides, baseProfile, charName);
   const scoreMessages = buildScoreMessages(latestUserMessage.content, promptOverrides);
   const requestStartedAt = Date.now();
 
@@ -1639,12 +1644,16 @@ app.post("/api/evaluate-round", async (req, res) => {
     promptOverrides: rawPromptOverrides,
     kConfig: rawKConfig,
     roleStateConfig: rawRoleStateConfig,
+    baseProfile: rawBaseProfile,
+    charName: rawCharName,
   } = req.body || {};
 
   if (!Array.isArray(messages)) {
     return res.status(400).json({ error: "messages 必须为数组" });
   }
 
+  const charName = typeof rawCharName === "string" && rawCharName.trim() ? rawCharName : "恩佐";
+  const baseProfile = typeof rawBaseProfile === "string" && rawBaseProfile.trim() ? rawBaseProfile : BASE_PROFILE;
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   const kConfig = normalizeKConfig(rawKConfig);
   const stateDefinitions = normalizeStateDefinitions(rawRoleStateConfig);
@@ -1656,6 +1665,8 @@ app.post("/api/evaluate-round", async (req, res) => {
       kConfig,
       stateDefinitions,
       roundNumber: clamp(Number(round) || 1, 1, 999),
+      baseProfile,
+      charName,
     });
     res.json(result);
   } catch (error) {
