@@ -544,6 +544,10 @@
       #roleDianjingResult {
         min-width: 0;
       }
+      #relationInitPanel .node-body textarea {
+        width: 100%;
+        min-height: 100px;
+      }
       #roleFengrongResult.prompt-mode,
       #roleDianjingResult.prompt-mode {
         width: 100%;
@@ -641,6 +645,7 @@
         <button type="button" class="app-tab active" id="appTabEmotionStrategy">情感策略demo</button>
         <button type="button" class="app-tab" id="appTabRoleFengrong">丰荣</button>
         <button type="button" class="app-tab" id="appTabRoleDianjing">点睛</button>
+        <button type="button" class="app-tab" id="appTabRelationStrategy">关系策略demo</button>
       </div>
 
       <div class="app-view" id="emotionStrategyView">
@@ -715,6 +720,15 @@
             <div class="role-glaze-form" id="roleDianjingForm"></div>
             <div id="roleDianjingResult"></div>
           </div>
+        </section>
+      </div>
+
+      <div class="app-view" id="relationStrategyView" hidden>
+        <section class="panel" style="padding:18px;">
+          <div class="sub-tabs" id="relationSubTabs"></div>
+          <div id="relationInitPanel"></div>
+          <div id="relationChatPanel" hidden></div>
+          <div id="relationPromptPanel" hidden></div>
         </section>
       </div>
     </div>
@@ -886,9 +900,15 @@
       const appTabEmotionStrategyEl = document.getElementById("appTabEmotionStrategy");
       const appTabRoleFengrongEl = document.getElementById("appTabRoleFengrong");
       const appTabRoleDianjingEl = document.getElementById("appTabRoleDianjing");
+      const appTabRelationStrategyEl = document.getElementById("appTabRelationStrategy");
       const emotionStrategyViewEl = document.getElementById("emotionStrategyView");
       const roleFengrongViewEl = document.getElementById("roleFengrongView");
       const roleDianjingViewEl = document.getElementById("roleDianjingView");
+      const relationStrategyViewEl = document.getElementById("relationStrategyView");
+      const relationSubTabsEl = document.getElementById("relationSubTabs");
+      const relationInitPanelEl = document.getElementById("relationInitPanel");
+      const relationChatPanelEl = document.getElementById("relationChatPanel");
+      const relationPromptPanelEl = document.getElementById("relationPromptPanel");
       const roleFengrongWrapEl = document.getElementById("roleFengrongWrap");
       const roleDianjingWrapEl = document.getElementById("roleDianjingWrap");
       const roleFengrongFormEl = document.getElementById("roleFengrongForm");
@@ -938,6 +958,24 @@
       let roleDianjingInput = { ...EMPTY_ROLE_INPUT };
       let roleFengrongResult = null;
       let roleDianjingResult = null;
+
+      let activeRelationSubTab = "init";
+      let relationInitInput = { tagline: "", userSet: "" };
+      let relationInitResult = null;
+      let relationInitLoading = false;
+      let relationConfigApplied = false;
+      let relationChatHistory = [];
+      let relationCurrentStage = "";
+      let relationStageSettings = [];
+      let relationEvolutionStages = [];
+      let relationCurrentAtmosphere = "";
+      let relationRoundCounter = 0;
+      let relationTransitionHistory = [];
+      let relationChatLoading = false;
+      let relationRoundTrace = null;
+      let relationPromptDefaults = null;
+      let relationPromptOverrides = null;
+
       const ROLE_GLAZE_FIELD_LABELS = {
         name: "角色姓名",
         gender: "角色性别",
@@ -1732,9 +1770,11 @@ ${session.result.averageScore}`
         appTabEmotionStrategyEl.classList.toggle("active", activeAppTab === "emotionStrategy");
         appTabRoleFengrongEl.classList.toggle("active", activeAppTab === "roleFengrong");
         appTabRoleDianjingEl.classList.toggle("active", activeAppTab === "roleDianjing");
+        appTabRelationStrategyEl.classList.toggle("active", activeAppTab === "relationStrategy");
         emotionStrategyViewEl.hidden = activeAppTab !== "emotionStrategy";
         roleFengrongViewEl.hidden = activeAppTab !== "roleFengrong";
         roleDianjingViewEl.hidden = activeAppTab !== "roleDianjing";
+        relationStrategyViewEl.hidden = activeAppTab !== "relationStrategy";
 
         if (activeAppTab === "roleFengrong") {
           renderRoleBaseForm({
@@ -1768,11 +1808,503 @@ ${session.result.averageScore}`
           bindRoleDianjingResultEvents();
           bindRolePromptEditorEvents("dianjing");
         }
+
+        if (activeAppTab === "relationStrategy") {
+          renderRelationSubTabs();
+          renderRelationView();
+        }
       }
 
       function setActiveAppTab(nextTab) {
         activeAppTab = nextTab;
         renderAppView();
+      }
+
+      function renderRelationSubTabs() {
+        const tabs = [
+          { id: "init", label: "关系初始阶段判定与定义" },
+          { id: "chat", label: "关系策略对话" },
+          { id: "prompts", label: "修改提示词" },
+        ];
+        relationSubTabsEl.innerHTML = tabs.map((t) =>
+          `<button type="button" class="sub-tab ${activeRelationSubTab === t.id ? "active" : ""}" data-relation-subtab="${t.id}">${escapeHtml(t.label)}</button>`
+        ).join("");
+        relationSubTabsEl.querySelectorAll("[data-relation-subtab]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeRelationSubTab = btn.getAttribute("data-relation-subtab") || "init";
+            renderRelationSubTabs();
+            renderRelationView();
+          });
+        });
+      }
+
+      function renderRelationView() {
+        relationInitPanelEl.hidden = activeRelationSubTab !== "init";
+        relationChatPanelEl.hidden = activeRelationSubTab !== "chat";
+        relationPromptPanelEl.hidden = activeRelationSubTab !== "prompts";
+        if (activeRelationSubTab === "init") {
+          renderRelationInitTab();
+        } else if (activeRelationSubTab === "chat") {
+          renderRelationChatTab();
+        } else if (activeRelationSubTab === "prompts") {
+          renderRelationPromptEditor();
+        }
+      }
+
+      function renderRelationInitTab() {
+        const result = relationInitResult;
+        relationInitPanelEl.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">角色与用户设定</div>
+              <div class="node-meta">输入 Tagline 和用户设定后生成关系初始化结果</div>
+            </div>
+            <div class="node-body">
+              <div>
+                <div class="label">角色设定（Tagline）</div>
+                <textarea id="relationTaglineInput" rows="4" placeholder="请填写角色设定">${escapeHtml(relationInitInput.tagline)}</textarea>
+              </div>
+              <div>
+                <div class="label">用户设定（user_set）</div>
+                <textarea id="relationUserSetInput" rows="4" placeholder="请填写用户设定">${escapeHtml(relationInitInput.userSet)}</textarea>
+              </div>
+              <div class="control-row">
+                <button type="button" id="relationInitRunBtn" ${relationInitLoading ? "disabled" : ""}>
+                  ${relationInitLoading ? "生成中..." : "生成关系初始化"}
+                </button>
+              </div>
+            </div>
+          </section>
+          ${result ? renderRelationInitResult(result) : ""}
+        `;
+        bindRelationInitEvents();
+      }
+
+      function renderRelationInitResult(result) {
+        const stageRows = (result.stageSettings || []).map((s) =>
+          `<tr><td>${escapeHtml(s.stage || s["关系阶段"] || "")}</td><td>${escapeHtml(s.coreAttitude || s["核心态度"] || "")}</td><td>${escapeHtml(s.boundary || s["底线边界"] || "")}</td></tr>`
+        ).join("");
+        const evolutionList = (result.evolutionStages || []).map((s, i) =>
+          `<span class="chip">Stage ${i + 1}: ${escapeHtml(String(s))}</span>`
+        ).join(" ");
+        return `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">生成结果</div>
+              <div class="node-meta">初始关系阶段 + 阶段设定 + 演进阶段</div>
+            </div>
+            <div class="node-body">
+              <div>
+                <div class="label">初始关系阶段</div>
+                <div class="block"><pre>${escapeHtml(result.initialStage || "-")}</pre></div>
+              </div>
+              <div>
+                <div class="label">关系阶段设定</div>
+                <table class="simple-table"><thead><tr><th>关系阶段</th><th>核心态度</th><th>底线边界</th></tr></thead><tbody>${stageRows || "<tr><td colspan='3'>暂无</td></tr>"}</tbody></table>
+              </div>
+              <div>
+                <div class="label">关系演进阶段</div>
+                <div class="chip-row">${evolutionList || "<span class='muted'>暂无</span>"}</div>
+              </div>
+              <div class="control-row">
+                <button type="button" id="relationApplyBtn" ${relationConfigApplied ? "disabled" : ""}>
+                  ${relationConfigApplied ? "已应用到关系策略对话" : "应用到关系策略对话"}
+                </button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function bindRelationInitEvents() {
+        const taglineField = document.getElementById("relationTaglineInput");
+        const userSetField = document.getElementById("relationUserSetInput");
+        if (taglineField) taglineField.addEventListener("input", (e) => { relationInitInput.tagline = e.target.value; });
+        if (userSetField) userSetField.addEventListener("input", (e) => { relationInitInput.userSet = e.target.value; });
+
+        const runBtn = document.getElementById("relationInitRunBtn");
+        if (runBtn) runBtn.addEventListener("click", runRelationInit);
+
+        const applyBtn = document.getElementById("relationApplyBtn");
+        if (applyBtn) applyBtn.addEventListener("click", applyRelationConfig);
+      }
+
+      async function runRelationInit() {
+        if (relationInitLoading) return;
+        if (!relationInitInput.tagline.trim() || !relationInitInput.userSet.trim()) {
+          showErr("请填写 Tagline 和用户设定");
+          return;
+        }
+        showErr("");
+        relationInitLoading = true;
+        relationInitResult = null;
+        relationConfigApplied = false;
+        renderRelationInitTab();
+        try {
+          const response = await fetch("/api/relation-init", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tagline: relationInitInput.tagline, userSet: relationInitInput.userSet, relationPromptOverrides: currentRelationPromptOverrides() }),
+          });
+          const data = await readApiResponse(response);
+          if (!response.ok) throw new Error(data.error || JSON.stringify(data));
+          relationInitResult = data;
+        } catch (error) {
+          showErr(error instanceof Error ? error.message : String(error));
+        } finally {
+          relationInitLoading = false;
+          renderRelationInitTab();
+        }
+      }
+
+      function applyRelationConfig() {
+        if (!relationInitResult) return;
+        relationConfigApplied = true;
+        relationCurrentStage = relationInitResult.initialStage || "";
+        relationStageSettings = relationInitResult.stageSettings || [];
+        relationEvolutionStages = relationInitResult.evolutionStages || [];
+        relationChatHistory = [];
+        relationRoundCounter = 0;
+        relationCurrentAtmosphere = "";
+        relationTransitionHistory = [];
+        renderRelationInitTab();
+      }
+
+      function getRelationStageSetting(stage) {
+        const found = relationStageSettings.find((s) =>
+          (s.stage || s["关系阶段"] || "") === stage
+        );
+        if (!found) return { coreAttitude: "", boundary: "" };
+        return {
+          coreAttitude: found.coreAttitude || found["核心态度"] || "",
+          boundary: found.boundary || found["底线边界"] || "",
+        };
+      }
+
+      function getRelationNextStage() {
+        const stages = [relationCurrentStage, ...relationEvolutionStages];
+        const idx = stages.indexOf(relationCurrentStage);
+        if (idx >= 0 && idx < stages.length - 1) return stages[idx + 1];
+        return relationEvolutionStages[0] || "";
+      }
+
+      function formatRelationChatHistory() {
+        return relationChatHistory
+          .filter((m) => m.role !== "system")
+          .map((m) => `${m.role === "user" ? "用户" : "角色"}：${m.content}`)
+          .join("\n");
+      }
+
+      function renderRelationChatTab() {
+        if (!relationConfigApplied) {
+          relationChatPanelEl.innerHTML = `
+            <section class="node">
+              <div class="node-head"><div class="node-title">关系策略对话</div></div>
+              <div class="node-body">
+                <div class="muted">请先前往「关系初始阶段判定与定义」完成角色关系设定初始化，并点击"应用到关系策略对话"后再开始对话。</div>
+              </div>
+            </section>`;
+          return;
+        }
+        const nextStage = getRelationNextStage();
+        const curSetting = getRelationStageSetting(relationCurrentStage);
+        const bubbles = relationChatHistory
+          .filter((m) => m.role !== "system")
+          .map((m) => `<div class="bubble ${m.role}">${escapeHtml(m.content)}</div>`)
+          .join("");
+
+        const t = relationRoundTrace;
+        const traceHtml = buildRelationTraceHtml(t, nextStage);
+        const transitionRows = relationTransitionHistory.map((tr) =>
+          `<div class="chip-row"><span class="chip">${escapeHtml(tr.from)} → ${escapeHtml(tr.to)}</span><span class="muted" style="margin-left:8px;">第${tr.round}轮 · ${escapeHtml(tr.reason)}</span></div>`
+        ).join("");
+
+        relationChatPanelEl.innerHTML = `
+          <div class="layout">
+            <div class="left-stack">
+              <section class="panel chat-panel">
+                <div class="panel-header">
+                  <div class="panel-title">关系策略对话</div>
+                  <div class="panel-meta">第 ${relationRoundCounter} 轮 · 关系阶段：${escapeHtml(relationCurrentStage)} · 氛围：${escapeHtml(relationCurrentAtmosphere || "待判定")}</div>
+                </div>
+                <div id="relationErr" class="err"></div>
+                <div class="msgs" id="relationMsgs">${bubbles}</div>
+                <div class="composer">
+                  <textarea id="relationInput" rows="2" placeholder="输入一句话开始对话"></textarea>
+                  <button type="button" id="relationSendBtn" ${relationChatLoading ? "disabled" : ""}>${relationChatLoading ? "发送中..." : "发送"}</button>
+                </div>
+              </section>
+            </div>
+            <section class="panel trace-panel" style="overflow-y:auto;">
+              <div class="panel-header">
+                <div class="panel-title">全链路可视化</div>
+                <div class="panel-meta">第 ${relationRoundCounter} 轮 · ${escapeHtml(relationCurrentStage)} · 下一阶段：${escapeHtml(nextStage || "无")} · 氛围：${escapeHtml(relationCurrentAtmosphere || "待判定")}</div>
+              </div>
+              <div class="node-body" style="padding:12px;">
+                ${traceHtml}
+                <section class="node" style="margin-top:8px;">
+                  <div class="node-head"><div class="node-title">关系演进路线</div></div>
+                  <div class="node-body">
+                    <div class="chip-row">
+                      ${[relationCurrentStage, ...relationEvolutionStages].map((s, i) =>
+                        `${i > 0 ? ' <span style="color:var(--muted);">→</span> ' : ''}<span class="chip"${i === 0 ? ' style="font-weight:600;border-color:var(--accent);"' : ''}>${escapeHtml(String(s))}</span>`
+                      ).join("")}
+                    </div>
+                    <div style="margin-top:4px;"><span class="label">当前阶段设定</span>：核心态度 — ${escapeHtml(curSetting.coreAttitude)}；底线边界 — ${escapeHtml(curSetting.boundary)}</div>
+                  </div>
+                </section>
+                ${transitionRows ? `
+                <section class="node" style="margin-top:8px;">
+                  <div class="node-head"><div class="node-title">跃迁历史</div></div>
+                  <div class="node-body">${transitionRows}</div>
+                </section>` : ""}
+              </div>
+            </section>
+          </div>
+        `;
+        bindRelationChatEvents();
+        const msgsContainer = document.getElementById("relationMsgs");
+        if (msgsContainer) msgsContainer.scrollTop = msgsContainer.scrollHeight;
+      }
+
+      function buildRelationTraceHtml(t, nextStage) {
+        if (!t) return `<div class="muted">发送消息后将在此展示本轮全链路节点结果</div>`;
+        let html = "";
+
+        html += `<section class="node">
+          <div class="node-head"><div class="node-title">跃迁判定</div></div>
+          <div class="node-body">`;
+        if (!t.transition) {
+          html += `<div class="muted">加载中...</div>`;
+        } else if (!t.transition.checked) {
+          html += `<div>本轮未触发跃迁判定（每 10 轮判定一次）</div>
+            <div class="label" style="margin-top:4px;">距下次跃迁判定还有 <strong>${t.roundsUntilTransitionCheck}</strong> 轮</div>`;
+        } else {
+          html += `<div><span class="label">判定结果</span>：${t.transition.shouldTransition
+            ? `<span style="color:#6cf;">跃迁发生</span> · ${escapeHtml(t.transition.from)} → ${escapeHtml(t.transition.to)}`
+            : `<span style="color:var(--muted);">未跃迁</span>`}</div>`;
+          if (t.transition.reason) html += `<div><span class="label">理由</span>：${escapeHtml(t.transition.reason)}</div>`;
+          if (t.transition.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.transition.rawOutput)}</pre></div></details>`;
+        }
+        html += `</div></section>`;
+
+        html += `<section class="node" style="margin-top:8px;">
+          <div class="node-head"><div class="node-title">对话氛围判定</div></div>
+          <div class="node-body">`;
+        if (!t.atmosphere) {
+          html += `<div class="muted">判定中...</div>`;
+        } else {
+          html += `<div><span class="label">氛围</span>：<strong>${escapeHtml(t.atmosphere.chatAtm || "无")}</strong></div>`;
+          if (t.atmosphere.latencyMs) html += `<div><span class="label">耗时</span>：${t.atmosphere.latencyMs} ms</div>`;
+          if (t.atmosphere.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.atmosphere.rawOutput)}</pre></div></details>`;
+        }
+        html += `</div></section>`;
+
+        html += `<section class="node" style="margin-top:8px;">
+          <div class="node-head"><div class="node-title">关系阶段二次生成</div></div>
+          <div class="node-body">`;
+        if (t.regeneration === null) {
+          const remaining = relationEvolutionStages.length;
+          html += `<div>未触发（剩余演进阶段：${remaining} 个）</div>`;
+        } else if (t.regeneration.triggered) {
+          if (t.regeneration.result && t.regeneration.result.length > 0) {
+            html += `<div><span style="color:#6cf;">已触发</span> · 新生成 ${t.regeneration.result.length} 个演进阶段</div>`;
+            html += `<div class="chip-row" style="margin-top:4px;">${t.regeneration.result.map((s) => `<span class="chip">${escapeHtml(String(s))}</span>`).join(" → ")}</div>`;
+          } else {
+            html += `<div><span style="color:#6cf;">已触发</span> · 生成失败或为空</div>`;
+          }
+          if (t.regeneration.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.regeneration.rawOutput)}</pre></div></details>`;
+        }
+        html += `</div></section>`;
+
+        html += `<section class="node" style="margin-top:8px;">
+          <div class="node-head"><div class="node-title">System Prompt</div></div>
+          <div class="node-body">`;
+        if (t.systemPrompt) {
+          html += `<details><summary class="label" style="cursor:pointer;">展开查看完整系统提示词</summary><div class="block"><pre style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">${escapeHtml(t.systemPrompt)}</pre></div></details>`;
+        } else {
+          html += `<div class="muted">加载中...</div>`;
+        }
+        html += `</div></section>`;
+
+        return html;
+      }
+
+      function bindRelationChatEvents() {
+        const sendBtn = document.getElementById("relationSendBtn");
+        const inputField = document.getElementById("relationInput");
+        if (sendBtn) sendBtn.addEventListener("click", sendRelationMessage);
+        if (inputField) inputField.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendRelationMessage(); }
+        });
+      }
+
+      function showRelationErr(msg) {
+        const el = document.getElementById("relationErr");
+        if (el) el.textContent = msg || "";
+      }
+
+      async function sendRelationMessage() {
+        const inputField = document.getElementById("relationInput");
+        const text = inputField?.value?.trim();
+        if (!text || relationChatLoading) return;
+        showRelationErr("");
+        inputField.value = "";
+        relationChatHistory.push({ role: "user", content: text });
+        relationChatLoading = true;
+
+        const trace = {
+          round: relationRoundCounter + 1,
+          transition: null,
+          roundsUntilTransitionCheck: 0,
+          atmosphere: null,
+          regeneration: null,
+          systemPrompt: "",
+        };
+        relationRoundTrace = trace;
+        renderRelationChatTab();
+
+        const nextStage = getRelationNextStage();
+        const curSetting = getRelationStageSetting(relationCurrentStage);
+        const nextSetting = getRelationStageSetting(nextStage);
+
+        try {
+          const chatRes = await fetch("/api/relation-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: relationChatHistory,
+              relationConfig: {
+                gender: "男",
+                tagline: relationInitInput.tagline,
+                stageCur: relationCurrentStage,
+                stageSetting: `核心态度：${curSetting.coreAttitude}；底线边界：${curSetting.boundary}`,
+                chatAtm: relationCurrentAtmosphere,
+                stageNext: nextStage,
+                nextCoreAttitude: nextSetting.coreAttitude,
+                nextBoundary: nextSetting.boundary,
+              },
+              relationPromptOverrides: currentRelationPromptOverrides(),
+            }),
+          });
+          const chatData = await readApiResponse(chatRes);
+          if (!chatRes.ok) throw new Error(chatData.error || JSON.stringify(chatData));
+
+          const assistantContent = chatData.assistant?.content || "";
+          relationChatHistory.push({ role: "assistant", content: assistantContent });
+          relationRoundCounter += 1;
+          trace.round = relationRoundCounter;
+          trace.systemPrompt = chatData.systemPrompt || "";
+        } catch (error) {
+          showRelationErr(error instanceof Error ? error.message : String(error));
+          relationChatLoading = false;
+          renderRelationChatTab();
+          return;
+        }
+
+        relationChatLoading = false;
+        const isTransitionRound = relationRoundCounter > 0 && relationRoundCounter % 10 === 0;
+        trace.roundsUntilTransitionCheck = isTransitionRound ? 0 : (10 - (relationRoundCounter % 10));
+        renderRelationChatTab();
+
+        (async () => {
+          try {
+            const chatHistoryStr = formatRelationChatHistory();
+            const atmRes = await fetch("/api/relation-atmosphere", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tagline: relationInitInput.tagline,
+                chatHistory: chatHistoryStr,
+                relationPromptOverrides: currentRelationPromptOverrides(),
+              }),
+            });
+            const atmData = await readApiResponse(atmRes);
+            if (atmRes.ok && atmData.chatAtm) {
+              relationCurrentAtmosphere = atmData.chatAtm;
+            }
+            trace.atmosphere = {
+              chatAtm: atmData.chatAtm || "",
+              rawOutput: atmData.rawOutput || "",
+              latencyMs: atmData.trace?.latencyMs || 0,
+            };
+            renderRelationChatTab();
+          } catch {}
+        })();
+
+        if (isTransitionRound) {
+          (async () => {
+            try {
+              const transRes = await fetch("/api/relation-transition", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  tagline: relationInitInput.tagline,
+                  chatHistory: formatRelationChatHistory(),
+                  stageSet: JSON.stringify(relationStageSettings),
+                  stageCur: relationCurrentStage,
+                  stageNext: getRelationNextStage(),
+                  relationPromptOverrides: currentRelationPromptOverrides(),
+                }),
+              });
+              const transData = await readApiResponse(transRes);
+              trace.transition = {
+                checked: true,
+                shouldTransition: transData.shouldTransition || false,
+                from: transData.from || relationCurrentStage,
+                to: transData.to || "",
+                reason: transData.reason || "",
+                rawOutput: transData.rawOutput || "",
+              };
+              if (transRes.ok && transData.shouldTransition) {
+                relationTransitionHistory.push({
+                  round: relationRoundCounter,
+                  from: transData.from || relationCurrentStage,
+                  to: transData.to || getRelationNextStage(),
+                  reason: transData.reason || "",
+                });
+                relationCurrentStage = transData.to || getRelationNextStage();
+                const idx = relationEvolutionStages.indexOf(relationCurrentStage);
+                if (idx >= 0) relationEvolutionStages = relationEvolutionStages.slice(idx + 1);
+              }
+              renderRelationChatTab();
+
+              if (relationEvolutionStages.length === 0) {
+                await triggerRelationRegenerate(trace);
+              }
+            } catch {}
+          })();
+        } else {
+          trace.transition = { checked: false, shouldTransition: false, from: "", to: "", reason: "", rawOutput: "" };
+          if (relationEvolutionStages.length === 0) {
+            (async () => { await triggerRelationRegenerate(trace); })();
+          }
+        }
+      }
+
+      async function triggerRelationRegenerate(trace) {
+        try {
+          const regenRes = await fetch("/api/relation-regenerate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tagline: relationInitInput.tagline,
+              stageCur: relationCurrentStage,
+              stageSet: JSON.stringify(relationStageSettings),
+              relationPromptOverrides: currentRelationPromptOverrides(),
+            }),
+          });
+          const regenData = await readApiResponse(regenRes);
+          const newStages = regenData.evolutionStages || [];
+          trace.regeneration = { triggered: true, result: newStages, rawOutput: regenData.rawOutput || "" };
+          if (regenRes.ok && newStages.length > 0) {
+            relationEvolutionStages = newStages;
+          }
+          renderRelationChatTab();
+        } catch (e) {
+          trace.regeneration = { triggered: true, result: null, rawOutput: String(e) };
+          renderRelationChatTab();
+        }
       }
 
       function currentPromptOverrides() {
@@ -1789,6 +2321,78 @@ ${session.result.averageScore}`
           fengrongPrompt: "",
           dianjingPrompt: "",
         };
+      }
+
+      function currentRelationPromptOverrides() {
+        return relationPromptOverrides || relationPromptDefaults || {
+          relationInitPrompt: "",
+          relationAtmospherePrompt: "",
+          relationTransitionPrompt: "",
+          relationReplyPrompt: "",
+          relationRegeneratePrompt: "",
+        };
+      }
+
+      function renderRelationPromptEditor() {
+        const prompts = currentRelationPromptOverrides();
+        if (!relationPromptDefaults || !relationPromptOverrides) {
+          relationPromptPanelEl.innerHTML = `<div class="placeholder">提示词加载中...</div>`;
+          return;
+        }
+        const fields = [
+          { key: "relationReplyPrompt", label: "关系策略对话提示词" },
+          { key: "relationInitPrompt", label: "关系初始化提示词" },
+          { key: "relationAtmospherePrompt", label: "对话氛围判定提示词" },
+          { key: "relationTransitionPrompt", label: "关系跃迁判定提示词" },
+          { key: "relationRegeneratePrompt", label: "关系阶段二次生成提示词" },
+        ];
+        const fieldsHtml = fields.map((f) => `
+          <div>
+            <div class="label">${escapeHtml(f.label)}</div>
+            <textarea id="rp_${f.key}" rows="12" style="width:100%;min-height:180px;">${escapeHtml(prompts[f.key] || "")}</textarea>
+            <button type="button" class="btn-sm" data-reset-relation-prompt="${f.key}" style="margin-top:4px;">恢复默认</button>
+          </div>
+        `).join("");
+        relationPromptPanelEl.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">修改提示词</div>
+              <div class="node-meta">只在当前浏览器会话里生效，刷新页面后恢复默认</div>
+            </div>
+            <div class="node-body" style="display:grid;gap:18px;">
+              ${fieldsHtml}
+              <div class="control-row">
+                <button type="button" id="relationPromptResetAllBtn">全部恢复默认</button>
+              </div>
+            </div>
+          </section>
+        `;
+        bindRelationPromptEditorEvents();
+      }
+
+      function bindRelationPromptEditorEvents() {
+        if (!relationPromptOverrides || !relationPromptDefaults) return;
+        const keys = ["relationReplyPrompt", "relationInitPrompt", "relationAtmospherePrompt", "relationTransitionPrompt", "relationRegeneratePrompt"];
+        keys.forEach((key) => {
+          const el = document.getElementById("rp_" + key);
+          if (el) el.addEventListener("input", (e) => { relationPromptOverrides[key] = e.target.value; });
+        });
+        document.querySelectorAll("[data-reset-relation-prompt]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const key = btn.getAttribute("data-reset-relation-prompt");
+            if (key && relationPromptDefaults[key] !== undefined) {
+              relationPromptOverrides[key] = relationPromptDefaults[key];
+              renderRelationPromptEditor();
+            }
+          });
+        });
+        const resetAllBtn = document.getElementById("relationPromptResetAllBtn");
+        if (resetAllBtn) {
+          resetAllBtn.addEventListener("click", () => {
+            relationPromptOverrides = { ...relationPromptDefaults };
+            renderRelationPromptEditor();
+          });
+        }
       }
 
       function currentKConfig() {
@@ -1838,6 +2442,14 @@ ${session.result.averageScore}`
           fengrongPrompt: rolePromptDefaults.fengrongPrompt,
           dianjingPrompt: rolePromptDefaults.dianjingPrompt,
         };
+        relationPromptDefaults = {
+          relationInitPrompt: data.relationInitPrompt || "",
+          relationAtmospherePrompt: data.relationAtmospherePrompt || "",
+          relationTransitionPrompt: data.relationTransitionPrompt || "",
+          relationReplyPrompt: data.relationReplyPrompt || "",
+          relationRegeneratePrompt: data.relationRegeneratePrompt || "",
+        };
+        relationPromptOverrides = { ...relationPromptDefaults };
       }
 
       function renderPromptEditor() {
@@ -2732,6 +3344,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       appTabEmotionStrategyEl.addEventListener("click", () => setActiveAppTab("emotionStrategy"));
       appTabRoleFengrongEl.addEventListener("click", () => setActiveAppTab("roleFengrong"));
       appTabRoleDianjingEl.addEventListener("click", () => setActiveAppTab("roleDianjing"));
+      appTabRelationStrategyEl.addEventListener("click", () => setActiveAppTab("relationStrategy"));
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
       tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));

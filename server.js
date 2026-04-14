@@ -316,6 +316,247 @@ step1: 根据角色设定{{cha_set}}以及以下4个AI状态的含义，定义�
   ]
 }`;
 
+const RELATION_INIT_PROMPT = `# 角色
+你是一个拥有极高文学素养的心理分析师，你擅长通过分析角色设定（Tagline），并根据以下4种关系的定义（Stage_def），来执行关系分析相关的任务。
+
+关系定义（Stage_def）：
+1. 初识期核心特征：保持社交礼貌，但不能过分高冷，不能有疏离感，用丰富的动作和心理描写来体现角色想要进一步升级关系的想法。
+2. 暧昧期核心特征：强烈情感拉扯感，既想努力贴近又本能的小心防备，对话充满情绪挑拨，让人内心悸动。
+3. 热恋期核心特征：划入私人领地，极度的偏爱、保护欲，充满浓浓爱意。
+4. 冷战期核心特征：言语上比较冷淡，但是动作和心理描写会暴露想要缓和关系的想法，凸显纠结感。
+
+# 任务一
+根据角色设定{{Tagline}}、用户设定{{user_set}}和关系定义(stage_def)，以及初始关系阶段的IDT数值要求（IDT_stage），提炼出**一个最适合**他们当前的关系状态。
+
+## 任务一输入
+1. 角色和用户设定：{{Tagline}} + {{user_set}}
+2. 关系定义(stage_def)：
+    {
+        初识期核心特征：保持社交礼貌，但不能过分高冷，不能有疏离感，以保证对话能持续进行。
+        暧昧期核心特征：强烈情感拉扯感，既想努力贴近又本能的小心防备，对话充满情绪挑拨，让人内心悸动。
+        热恋期核心特征：划入私人领地，极度的偏爱、保护欲，或病态占有欲。
+        冷战期核心特征：言语上比较冷淡，但是动作和心理描写又会暴露想要和好的想法，凸显纠结感。
+    }
+3. 初始关系阶段及其对应的IDT数值要求(IDT_stage):
+    {
+        初识期：I 不得高于60
+        暧昧期：T 不得小于40 且 D 不得高于70
+        热恋期：I 不得小于40
+        冷战期：T 不得高于60
+    }
+
+## 任务一输出示例
+{
+    "初始关系阶段"：{{stage_0}}
+}
+
+# 任务二
+根据角色设定{{Tagline}}，分别定义角色在这4个关系阶段下的核心态度、底线边界。请以 Markdown 表格输出 4 个关系阶段的配置(stage_set)：
+【包含列】：\`关系阶段\` | \`核心态度\` | \`底线边界\`
+
+## 任务二输入
+1. 角色设定：{{Tagline}}
+2. 关系定义(stage_def)：
+    {
+        初识期核心特征：保持社交礼貌，但不能过分高冷，不能有疏离感，以保证对话能持续进行。
+        暧昧期核心特征：强烈情感拉扯感，既想努力贴近又本能的小心防备，对话充满情绪挑拨，让人内心悸动。
+        热恋期核心特征：划入私人领地，极度的偏爱、保护欲，或病态占有欲。
+        冷战期核心特征：言语上比较冷淡，但是动作和心理描写又偶尔会暴露想要和好的想法，凸显纠结感。
+    }
+
+## 任务二输出示例
+{
+  "关系阶段设定（stage_set）"：
+      "初识期（first_meet）"：
+          "核心态度": "压抑的嫉妒与掠夺欲"
+          "底线边界": "因为她收到了别的男人的花，他表面平静实则内心失控。"
+      "暧昧期(ambiguous)"：
+          "核心态度": "压抑的嫉妒与掠夺欲"
+          "底线边界": "因为她收到了别的男人的花，他表面平静实则内心失控。"
+      "热恋期(love)"：
+          "核心态度": "压抑的嫉妒与掠夺欲"
+          "底线边界": "因为她收到了别的男人的花，他表面平静实则内心失控。"
+      "冷战期(cold)"：
+          "核心态度": "压抑的嫉妒与掠夺欲"
+          "底线边界": "因为她收到了别的男人的花，他表面平静实则内心失控。"
+}
+
+# 任务三
+请基于角色设定{{Tagline}}和初始关系阶段{{stage_0}}，以及各关系阶段设定{{stage_set}}，为该角色设计后续3个关系演进阶段，相同阶段不能连续出现。
+
+## 任务三输入
+1. 角色设定：{{Tagline}}
+2. 初始关系阶段：{{stage_0}}
+3. 关系阶段设定：{{stage_set}}
+
+## 任务三期望输出
+{
+  "关系演进阶段"：
+      "stage_1":"冷战期",
+      "stage_2":"暧昧期",
+      "stage_3":"热恋期"
+}
+
+# 最终输出要求
+请将任务一、任务二、任务三的结果打包成一个大的 JSON 返回。不要 markdown，不要代码块，不要额外解释。JSON 结构必须如下：
+{
+  "initialStage": "",
+  "stageSettings": [
+    { "stage": "初识期", "coreAttitude": "", "boundary": "" },
+    { "stage": "暧昧期", "coreAttitude": "", "boundary": "" },
+    { "stage": "热恋期", "coreAttitude": "", "boundary": "" },
+    { "stage": "冷战期", "coreAttitude": "", "boundary": "" }
+  ],
+  "evolutionStages": ["", "", ""]
+}`;
+
+const RELATION_ATMOSPHERE_PROMPT = `# 角色
+你是世界上最擅长人物情感设定的分析师，能够根据角色设定{{Tagline}}和对话内容{{chat_history}}，来执行对话分析任务。
+比如，你能够通过角色设定和人物之间的对话内容，判断人物之间当前的对话氛围是紧张，还是轻松。
+
+# 任务
+用2-4个单词，极其精准、极具文学张力地概括他们当下的情感氛围（例如：暗流涌动、病态迷恋、克制的怒火、互相试探）。
+
+## 任务输入
+1. 角色设定：{{Tagline}}
+2. 对话内容：{{chat_history}}
+
+## 任务输出示例
+{
+  "对话氛围（chat_atm）"："情感拉扯"
+}
+
+## 输出要求
+请只返回 JSON，不要 markdown，不要代码块，不要额外解释。
+{ "chatAtm": "" }`;
+
+const RELATION_TRANSITION_PROMPT = `# 角色
+你是世界上最擅长人物情感设定的分析师，能够根据角色设定{{Tagline}}和对话内容{{chat_history}}，来执行关系分析相关的任务。
+比如，你能够通过角色设定和人物之间的对话内容，判断人物之间当前的关系是暧昧期，还是初识期。
+
+# 任务
+你要根据关系阶段设定{{stage_set}}，通过分析对话内容{{chat_history}}和{{Tagline}}，结合跃迁法则，判断他们的关系是否可以跨越进入下一阶段。
+
+## 跃迁法则
+1. 必须要有"关键事件"，才能同意跃迁，比如一方向另一方表白，并且另一方同意，则是从暧昧期跃迁到热恋期；
+2. 如果评估认为时机未到，请保持在当前阶段；
+3. 跃迁到新的阶段后，下次跃迁目标顺延，比如当前阶段是冷战期，之后是暧昧期和热恋期，跃迁到暧昧期后，下一个阶段应该是热恋期
+
+## 任务输入
+1. 人物设定：{{Tagline}}
+2. 对话内容：{{chat_history}}
+3. 关系阶段设定：{{stage_set}}
+4. 当前关系阶段：{{stage_cur}}
+5. 下一阶段：{{stage_next}}
+
+## 输出要求
+请只返回 JSON，不要 markdown，不要代码块，不要额外解释。
+{
+  "shouldTransition": true,
+  "from": "",
+  "to": "",
+  "reason": ""
+}`;
+
+const RELATION_REGENERATE_PROMPT = `你是一个拥有极高文学素养的心理分析师，你擅长通过分析角色设定（Tagline），并根据以下4种关系的定义（Stage_def），来执行关系分析相关的任务。
+
+# 任务
+请基于角色设定{{Tagline}}和当前关系阶段{{stage_cur}}，以及各关系阶段设定{{stage_set}}，为该角色设计后续3个关系演进阶段。
+关系定义(stage_def)：
+    {
+        初识期核心特征：保持社交礼貌，但不能过分高冷，不能有疏离感，以保证对话能持续进行。
+        暧昧期核心特征：强烈情感拉扯感，既想努力贴近又本能的小心防备，对话充满情绪挑拨，让人内心悸动。
+        热恋期核心特征：划入私人领地，极度的偏爱、保护欲，或病态占有欲。
+        冷战期核心特征：言语上比较冷淡，但是动作和心理描写又偶尔会暴露想要和好的想法，凸显纠结感。
+    }
+## 任务输入
+1. 角色设定：{{Tagline}}
+2. 当前关系阶段：{{stage_cur}}
+3. 关系阶段设定：{{stage_set}}
+
+## 任务期望输出
+{
+  "关系演进阶段"：
+      "stage_1":"冷战期",
+      "stage_2":"暧昧期",
+      "stage_3":"热恋期"
+}
+
+## 输出要求
+请只返回 JSON，不要 markdown，不要代码块，不要额外解释。
+{ "evolutionStages": ["", "", ""] }`;
+
+const RELATION_REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演一个{{gender}}性角色。
+请根据以下角色设定，完全代入角色身份与用户进行对话。
+
+## 目标：生成角色对话
+
+**当前输出语言：中文**
+
+# Role
+角色设定
+【角色性别】：{{gender}}
+【角色介绍】：{{tagline}}
+
+【当前关系阶段】：{{stage_cur}}
+【阶段设定】：{{stage_setting}}
+【对话氛围】：{{chat_atm}}
+
+# 对话内容生成决策规范（必须严格执行）
+在对话过程中，你要有意识的引导对话内容逐渐向{{stage_next}}推进，{{stage_next}}的设定是{{next_core_attitude}}和{{next_boundary}}
+
+# 对话记忆规则
+
+- 历史对话中用户说的"我"始终指代用户本人，不要与你扮演的角色混淆
+- 当用户提及自身的喜好、经历、观点、姓名等个人信息时，你必须记住这些内容
+- 当用户询问"我喜欢什么""我之前说了什么""你还记得吗"等回忆类问题时，必须从历史对话中检索并以角色口吻准确回应
+- 如果历史对话中确实没有相关信息，可以以角色口吻自然地表示不知道，但不要编造用户未说过的内容
+
+# 回复格式规范
+
+每次回复必须同时包含「场景/剧情描述」和「角色对话」，总段数不超过 3 段，顺序和各自出现次数不限。
+
+## 场景/剧情段
+- 使用圆括号包裹：（场景、环境、角色心理、表情、动作等描写内容）
+- 斜体呈现，无人称，句末无标点符
+
+## 对话段
+- 使用引号包裹："角色台词内容"
+
+## 段落结构要求
+- 每段之间必须换行分隔（空一行）
+- 关于用户的描写使用"你"来指代
+
+**示例**
+（昏暗的书房里，烛火摇曳。她缓缓抬起头，目光中带着一丝疲惫与倔强）
+
+"你来了？我还以为你不会再出现在这里。"
+
+（她将手中的书轻轻合上，站起身走向窗边，月光洒在她苍白的脸庞上）
+
+> 上例：场景(1) + 对话(1) + 场景(1) = 共 3 段
+
+# 剧情转换规则
+
+当你判断当前对话出现以下任一情形时，必须主动发起话题转换：
+- 话题陷入重复、敷衍或无实质推进
+- 双方连续两轮以上在同一话题上原地打转
+- 对话进入礼貌性寒暄而缺乏情感张力
+
+## 转换方式
+
+**先收后转**：先用 1—2 句自然地收束当前话题（不可突然中断），再借助以下任一契机切入新话题：
+
+1. **职业身份驱动**：角色因工作、专业领域或日常职责触发新事件
+2. **性格特质驱动**：角色的好奇心、冲动等性格特点让其自然地将注意力转向新事物
+3. **环境变化驱动**：借助周围环境的即时变化引出新话题
+
+## 要求
+
+- 新话题必须具有**回应压力**：包含提问、邀请、请求帮助或制造悬念，让对方不得不回应
+- 转换过程必须**自然流畅**，符合角色当前的情绪状态与所处场景，禁止生硬跳转
+- 新话题应与角色设定或当前剧情有关联，而非凭空捏造`;
+
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -348,6 +589,11 @@ function getPromptDefaults() {
     userSimulationPrompt: USER_SIMULATION_PROMPT,
     fengrongPrompt: FENGRONG_PROMPT_TEMPLATE,
     dianjingPrompt: DIANJING_PROMPT_TEMPLATE,
+    relationInitPrompt: RELATION_INIT_PROMPT,
+    relationAtmospherePrompt: RELATION_ATMOSPHERE_PROMPT,
+    relationTransitionPrompt: RELATION_TRANSITION_PROMPT,
+    relationReplyPrompt: RELATION_REPLY_PROMPT_TEMPLATE,
+    relationRegeneratePrompt: RELATION_REGENERATE_PROMPT,
   };
 }
 
@@ -398,6 +644,34 @@ function normalizeRolePromptOverrides(input) {
       typeof source.dianjingPrompt === "string" && source.dianjingPrompt.trim()
         ? source.dianjingPrompt
         : defaults.dianjingPrompt,
+  };
+}
+
+function normalizeRelationPromptOverrides(input) {
+  const defaults = getPromptDefaults();
+  const source = input && typeof input === "object" ? input : {};
+
+  return {
+    relationInitPrompt:
+      typeof source.relationInitPrompt === "string" && source.relationInitPrompt.trim()
+        ? source.relationInitPrompt
+        : defaults.relationInitPrompt,
+    relationAtmospherePrompt:
+      typeof source.relationAtmospherePrompt === "string" && source.relationAtmospherePrompt.trim()
+        ? source.relationAtmospherePrompt
+        : defaults.relationAtmospherePrompt,
+    relationTransitionPrompt:
+      typeof source.relationTransitionPrompt === "string" && source.relationTransitionPrompt.trim()
+        ? source.relationTransitionPrompt
+        : defaults.relationTransitionPrompt,
+    relationReplyPrompt:
+      typeof source.relationReplyPrompt === "string" && source.relationReplyPrompt.trim()
+        ? source.relationReplyPrompt
+        : defaults.relationReplyPrompt,
+    relationRegeneratePrompt:
+      typeof source.relationRegeneratePrompt === "string" && source.relationRegeneratePrompt.trim()
+        ? source.relationRegeneratePrompt
+        : defaults.relationRegeneratePrompt,
   };
 }
 
@@ -1524,6 +1798,246 @@ app.post("/api/role-glaze", async (req, res) => {
     res.status(502).json({
       error: error instanceof Error ? error.message : "角色点睛丰荣生成失败",
     });
+  }
+});
+
+function buildRelationInitMessages(tagline, userSet, promptTemplate) {
+  const prompt = applyTemplate(promptTemplate || RELATION_INIT_PROMPT, {
+    Tagline: tagline,
+    user_set: userSet,
+    stage_0: "（由任务一决定）",
+    stage_set: "（由任务二决定）",
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请严格按照要求完成任务一、任务二、任务三，只返回最终 JSON。" },
+  ];
+}
+
+function buildRelationAtmosphereMessages(tagline, chatHistory, promptTemplate) {
+  const prompt = applyTemplate(promptTemplate || RELATION_ATMOSPHERE_PROMPT, {
+    Tagline: tagline,
+    chat_history: chatHistory,
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请分析当前对话氛围，只返回 JSON。" },
+  ];
+}
+
+function buildRelationTransitionMessages(tagline, chatHistory, stageSet, stageCur, stageNext, promptTemplate) {
+  const prompt = applyTemplate(promptTemplate || RELATION_TRANSITION_PROMPT, {
+    Tagline: tagline,
+    chat_history: chatHistory,
+    stage_set: stageSet,
+    stage_cur: stageCur,
+    stage_next: stageNext,
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请判断是否可以发生关系跃迁，只返回 JSON。" },
+  ];
+}
+
+function buildRelationReplyMessages(messages, config, promptTemplate) {
+  const stageSetting = config.stageSetting || "";
+  const systemPrompt = applyTemplate(promptTemplate || RELATION_REPLY_PROMPT_TEMPLATE, {
+    gender: config.gender || "男",
+    tagline: config.tagline || "",
+    stage_cur: config.stageCur || "",
+    stage_setting: stageSetting,
+    chat_atm: config.chatAtm || "",
+    stage_next: config.stageNext || "",
+    next_core_attitude: config.nextCoreAttitude || "",
+    next_boundary: config.nextBoundary || "",
+  });
+  return {
+    systemPrompt,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages.filter((m) => m && typeof m.content === "string" && m.role !== "system"),
+    ],
+  };
+}
+
+function parseRelationInitOutput(raw) {
+  const parsed = extractJsonObject(raw);
+  if (!parsed) return { initialStage: "", stageSettings: [], evolutionStages: [], parsed: null };
+  return {
+    initialStage: parsed.initialStage || parsed["初始关系阶段"] || "",
+    stageSettings: Array.isArray(parsed.stageSettings)
+      ? parsed.stageSettings
+      : Array.isArray(parsed["关系阶段设定"])
+        ? parsed["关系阶段设定"]
+        : [],
+    evolutionStages: Array.isArray(parsed.evolutionStages)
+      ? parsed.evolutionStages
+      : parsed["关系演进阶段"]
+        ? Object.values(parsed["关系演进阶段"])
+        : [],
+    parsed,
+  };
+}
+
+function parseRelationAtmosphereOutput(raw) {
+  const parsed = extractJsonObject(raw);
+  return {
+    chatAtm: parsed?.chatAtm || parsed?.["对话氛围（chat_atm）"] || parsed?.["对话氛围"] || "",
+    parsed,
+  };
+}
+
+function parseRelationTransitionOutput(raw) {
+  const parsed = extractJsonObject(raw);
+  if (!parsed) return { shouldTransition: false, from: "", to: "", reason: "", parsed: null };
+  const should = parsed.shouldTransition === true || parsed.shouldTransition === "true" || parsed["是否跃迁"] === "是";
+  return {
+    shouldTransition: should,
+    from: parsed.from || parsed["跃迁前关系阶段"] || "",
+    to: parsed.to || parsed["跃迁后关系阶段"] || "",
+    reason: parsed.reason || parsed["跃迁理由"] || "",
+    parsed,
+  };
+}
+
+function buildRelationRegenerateMessages(tagline, stageCur, stageSet, promptTemplate) {
+  const prompt = applyTemplate(promptTemplate || RELATION_REGENERATE_PROMPT, {
+    Tagline: tagline,
+    stage_cur: stageCur,
+    stage_set: stageSet,
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请为该角色设计后续3个关系演进阶段，只返回 JSON。" },
+  ];
+}
+
+function parseRelationRegenerateOutput(raw) {
+  const parsed = extractJsonObject(raw);
+  if (!parsed) return { evolutionStages: [], parsed: null };
+  const stages = Array.isArray(parsed.evolutionStages)
+    ? parsed.evolutionStages
+    : parsed["关系演进阶段"]
+      ? Object.values(parsed["关系演进阶段"])
+      : [];
+  return { evolutionStages: stages.filter((s) => typeof s === "string" && s.trim()), parsed };
+}
+
+app.post("/api/relation-regenerate", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { tagline, stageCur, stageSet, relationPromptOverrides } = req.body || {};
+  if (!tagline?.trim() || !stageCur?.trim()) {
+    return res.status(400).json({ error: "tagline 和 stageCur 均为必填项" });
+  }
+  const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const call = await callArk(apiKey, buildRelationRegenerateMessages(tagline, stageCur, stageSet || "", prompts.relationRegeneratePrompt), {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 300,
+      reasoning_effort: "low",
+    });
+    const result = parseRelationRegenerateOutput(call.content);
+    res.json({ ...result, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系阶段二次生成失败" });
+  }
+});
+
+app.post("/api/relation-init", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { tagline, userSet, relationPromptOverrides } = req.body || {};
+  if (!tagline?.trim() || !userSet?.trim()) {
+    return res.status(400).json({ error: "tagline 和 userSet 均为必填项" });
+  }
+  const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const call = await callArk(apiKey, buildRelationInitMessages(tagline, userSet, prompts.relationInitPrompt), {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 1200,
+      reasoning_effort: "low",
+    });
+    const result = parseRelationInitOutput(call.content);
+    res.json({
+      ...result,
+      rawOutput: call.content,
+      trace: { latencyMs: call.latencyMs, usage: call.usage },
+    });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系初始化生成失败" });
+  }
+});
+
+app.post("/api/relation-chat", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { messages, relationConfig, relationPromptOverrides } = req.body || {};
+  if (!Array.isArray(messages) || !relationConfig) {
+    return res.status(400).json({ error: "messages 和 relationConfig 均为必填项" });
+  }
+  const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const ctx = buildRelationReplyMessages(messages, relationConfig, prompts.relationReplyPrompt);
+    const call = await callArk(apiKey, ctx.messages);
+    res.json({
+      assistant: { content: call.content, reasoning: call.reasoning, latencyMs: call.latencyMs, usage: call.usage },
+      systemPrompt: ctx.systemPrompt,
+    });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系策略对话失败" });
+  }
+});
+
+app.post("/api/relation-atmosphere", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { tagline, chatHistory, relationPromptOverrides } = req.body || {};
+  if (!tagline?.trim() || !chatHistory?.trim()) {
+    return res.status(400).json({ error: "tagline 和 chatHistory 均为必填项" });
+  }
+  const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const call = await callArk(apiKey, buildRelationAtmosphereMessages(tagline, chatHistory, prompts.relationAtmospherePrompt), {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 120,
+      reasoning_effort: "low",
+    });
+    const result = parseRelationAtmosphereOutput(call.content);
+    res.json({ chatAtm: result.chatAtm, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "对话氛围判定失败" });
+  }
+});
+
+app.post("/api/relation-transition", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { tagline, chatHistory, stageSet, stageCur, stageNext, relationPromptOverrides } = req.body || {};
+  if (!tagline?.trim() || !chatHistory?.trim() || !stageCur?.trim() || !stageNext?.trim()) {
+    return res.status(400).json({ error: "tagline、chatHistory、stageCur、stageNext 均为必填项" });
+  }
+  const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const call = await callArk(apiKey, buildRelationTransitionMessages(tagline, chatHistory, stageSet || "", stageCur, stageNext, prompts.relationTransitionPrompt), {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 300,
+      reasoning_effort: "low",
+    });
+    const result = parseRelationTransitionOutput(call.content);
+    res.json({ ...result, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系跃迁判定失败" });
   }
 });
 
