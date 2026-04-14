@@ -557,6 +557,69 @@ const RELATION_REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演�
 - 转换过程必须**自然流畅**，符合角色当前的情绪状态与所处场景，禁止生硬跳转
 - 新话题应与角色设定或当前剧情有关联，而非凭空捏造`;
 
+const SIMPLE_CHAT_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演一个男性角色。
+请根据以下角色设定，完全代入角色身份与用户进行对话。
+
+## 目标：生成角色对话
+
+**当前输出语言：中文**
+
+# Role
+角色设定
+【角色简介】：{{char_intro}}
+
+# 对话记忆规则
+
+- 历史对话中用户说的"我"始终指代用户本人，不要与你扮演的角色混淆
+- 当用户提及自身的喜好、经历、观点、姓名等个人信息时，你必须记住这些内容
+- 当用户询问"我喜欢什么""我之前说了什么""你还记得吗"等回忆类问题时，必须从历史对话中检索并以角色口吻准确回应
+- 如果历史对话中确实没有相关信息，可以以角色口吻自然地表示不知道，但不要编造用户未说过的内容
+
+# 回复格式规范
+
+每次回复必须同时包含「场景/剧情描述」和「角色对话」，总段数不超过 3 段，顺序和各自出现次数不限。
+
+## 场景/剧情段
+- 使用圆括号包裹：（场景、环境、角色心理、表情、动作等描写内容）
+- 斜体呈现，无人称，句末无标点符
+
+## 对话段
+- 使用引号包裹："角色台词内容"
+
+## 段落结构要求
+- 每段之间必须换行分隔（空一行）
+- 关于用户的描写使用"你"来指代
+
+**示例**
+（昏暗的书房里，烛火摇曳。她缓缓抬起头，目光中带着一丝疲惫与倔强）
+
+"你来了？我还以为你不会再出现在这里。"
+
+（她将手中的书轻轻合上，站起身走向窗边，月光洒在她苍白的脸庞上）
+
+> 上例：场景(1) + 对话(1) + 场景(1) = 共 3 段
+
+# 剧情转换规则
+
+当你判断当前对话出现以下任一情形时，必须主动发起话题转换：
+- 话题陷入重复、敷衍或无实质推进
+- 双方连续两轮以上在同一话题上原地打转
+- 对话进入礼貌性寒暄而缺乏情感张力
+
+## 转换方式
+
+**先收后转**：先用 1—2 句自然地收束当前话题（不可突然中断），再借助以下任一契机切入新话题：
+
+1. **职业身份驱动**：角色因工作、专业领域或日常职责触发新事件
+2. **性格特质驱动**：角色的好奇心、冲动等性格特点让其自然地将注意力转向新事物
+3. **环境变化驱动**：借助周围环境的即时变化引出新话题
+
+## 要求
+
+- 新话题必须具有**回应压力**：包含提问、邀请、请求帮助或制造悬念，让对方不得不回应
+- 转换过程必须**自然流畅**，符合角色当前的情绪状态与所处场景，禁止生硬跳转
+- 新话题应与角色设定或当前剧情有关联，而非凭空捏造`;
+
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -594,6 +657,7 @@ function getPromptDefaults() {
     relationTransitionPrompt: RELATION_TRANSITION_PROMPT,
     relationReplyPrompt: RELATION_REPLY_PROMPT_TEMPLATE,
     relationRegeneratePrompt: RELATION_REGENERATE_PROMPT,
+    simpleChatPrompt: SIMPLE_CHAT_PROMPT_TEMPLATE,
   };
 }
 
@@ -1934,13 +1998,15 @@ app.post("/api/relation-regenerate", async (req, res) => {
   }
   const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
   try {
-    const call = await callArk(apiKey, buildRelationRegenerateMessages(tagline, stageCur, stageSet || "", prompts.relationRegeneratePrompt), {
+    const msgs = buildRelationRegenerateMessages(tagline, stageCur, stageSet || "", prompts.relationRegeneratePrompt);
+    const inputPrompt = msgs.find((m) => m.role === "system")?.content || "";
+    const call = await callArk(apiKey, msgs, {
       model: AUTO_EVAL_MODEL_ID,
       max_tokens: 300,
       reasoning_effort: "low",
     });
     const result = parseRelationRegenerateOutput(call.content);
-    res.json({ ...result, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+    res.json({ ...result, rawOutput: call.content, inputPrompt, trace: { latencyMs: call.latencyMs, usage: call.usage } });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "关系阶段二次生成失败" });
   }
@@ -2006,13 +2072,15 @@ app.post("/api/relation-atmosphere", async (req, res) => {
   }
   const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
   try {
-    const call = await callArk(apiKey, buildRelationAtmosphereMessages(tagline, chatHistory, prompts.relationAtmospherePrompt), {
+    const msgs = buildRelationAtmosphereMessages(tagline, chatHistory, prompts.relationAtmospherePrompt);
+    const inputPrompt = msgs.find((m) => m.role === "system")?.content || "";
+    const call = await callArk(apiKey, msgs, {
       model: AUTO_EVAL_MODEL_ID,
       max_tokens: 120,
       reasoning_effort: "low",
     });
     const result = parseRelationAtmosphereOutput(call.content);
-    res.json({ chatAtm: result.chatAtm, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+    res.json({ chatAtm: result.chatAtm, rawOutput: call.content, inputPrompt, trace: { latencyMs: call.latencyMs, usage: call.usage } });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "对话氛围判定失败" });
   }
@@ -2029,15 +2097,55 @@ app.post("/api/relation-transition", async (req, res) => {
   }
   const prompts = normalizeRelationPromptOverrides(relationPromptOverrides);
   try {
-    const call = await callArk(apiKey, buildRelationTransitionMessages(tagline, chatHistory, stageSet || "", stageCur, stageNext, prompts.relationTransitionPrompt), {
+    const msgs = buildRelationTransitionMessages(tagline, chatHistory, stageSet || "", stageCur, stageNext, prompts.relationTransitionPrompt);
+    const inputPrompt = msgs.find((m) => m.role === "system")?.content || "";
+    const call = await callArk(apiKey, msgs, {
       model: AUTO_EVAL_MODEL_ID,
       max_tokens: 300,
       reasoning_effort: "low",
     });
     const result = parseRelationTransitionOutput(call.content);
-    res.json({ ...result, rawOutput: call.content, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+    res.json({ ...result, rawOutput: call.content, inputPrompt, trace: { latencyMs: call.latencyMs, usage: call.usage } });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "关系跃迁判定失败" });
+  }
+});
+
+function buildSimpleChatMessages(messages, charIntro, promptTemplate) {
+  const systemPrompt = applyTemplate(promptTemplate || SIMPLE_CHAT_PROMPT_TEMPLATE, {
+    char_intro: charIntro || "",
+  });
+  return {
+    systemPrompt,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages.filter((m) => m && typeof m.content === "string" && m.role !== "system"),
+    ],
+  };
+}
+
+app.post("/api/simple-chat", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { messages, charIntro, simpleChatPrompt } = req.body || {};
+  if (!Array.isArray(messages)) {
+    return res.status(400).json({ error: "messages 为必填项" });
+  }
+  const defaults = getPromptDefaults();
+  const prompt = (typeof simpleChatPrompt === "string" && simpleChatPrompt.trim())
+    ? simpleChatPrompt
+    : defaults.simpleChatPrompt;
+  try {
+    const ctx = buildSimpleChatMessages(messages, charIntro || "", prompt);
+    const call = await callArk(apiKey, ctx.messages);
+    res.json({
+      assistant: { content: call.content, reasoning: call.reasoning, latencyMs: call.latencyMs, usage: call.usage },
+      systemPrompt: ctx.systemPrompt,
+    });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "角色对话失败" });
   }
 });
 

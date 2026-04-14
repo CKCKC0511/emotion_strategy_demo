@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>情感策略demo</title>
+    <title>对话策略demo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -638,7 +638,7 @@
   <body>
     <div class="wrap">
       <header>
-        <h1>情感策略demo</h1>
+        <h1>对话策略demo</h1>
       </header>
 
       <div class="app-tabs">
@@ -646,6 +646,7 @@
         <button type="button" class="app-tab" id="appTabRoleFengrong">丰荣</button>
         <button type="button" class="app-tab" id="appTabRoleDianjing">点睛</button>
         <button type="button" class="app-tab" id="appTabRelationStrategy">关系策略demo</button>
+        <button type="button" class="app-tab" id="appTabSimpleChat">无策略对话</button>
       </div>
 
       <div class="app-view" id="emotionStrategyView">
@@ -729,6 +730,14 @@
           <div id="relationInitPanel"></div>
           <div id="relationChatPanel" hidden></div>
           <div id="relationPromptPanel" hidden></div>
+        </section>
+      </div>
+
+      <div class="app-view" id="simpleChatView" hidden>
+        <section class="panel" style="padding:18px;">
+          <div class="sub-tabs" id="simpleChatSubTabs"></div>
+          <div id="simpleChatTabChat"></div>
+          <div id="simpleChatTabPrompt" hidden></div>
         </section>
       </div>
     </div>
@@ -901,6 +910,8 @@
       const appTabRoleFengrongEl = document.getElementById("appTabRoleFengrong");
       const appTabRoleDianjingEl = document.getElementById("appTabRoleDianjing");
       const appTabRelationStrategyEl = document.getElementById("appTabRelationStrategy");
+      const appTabSimpleChatEl = document.getElementById("appTabSimpleChat");
+      const simpleChatViewEl = document.getElementById("simpleChatView");
       const emotionStrategyViewEl = document.getElementById("emotionStrategyView");
       const roleFengrongViewEl = document.getElementById("roleFengrongView");
       const roleDianjingViewEl = document.getElementById("roleDianjingView");
@@ -975,6 +986,14 @@
       let relationRoundTrace = null;
       let relationPromptDefaults = null;
       let relationPromptOverrides = null;
+
+      let simpleChatHistory = [];
+      let simpleChatCharIntro = "";
+      let simpleChatLoading = false;
+      let simpleChatLastSystemPrompt = "";
+      let simpleChatPromptOverride = null;
+      let simpleChatPromptDefault = null;
+      let activeSimpleChatSubTab = "chat";
 
       const ROLE_GLAZE_FIELD_LABELS = {
         name: "角色姓名",
@@ -1771,10 +1790,12 @@ ${session.result.averageScore}`
         appTabRoleFengrongEl.classList.toggle("active", activeAppTab === "roleFengrong");
         appTabRoleDianjingEl.classList.toggle("active", activeAppTab === "roleDianjing");
         appTabRelationStrategyEl.classList.toggle("active", activeAppTab === "relationStrategy");
+        appTabSimpleChatEl.classList.toggle("active", activeAppTab === "simpleChat");
         emotionStrategyViewEl.hidden = activeAppTab !== "emotionStrategy";
         roleFengrongViewEl.hidden = activeAppTab !== "roleFengrong";
         roleDianjingViewEl.hidden = activeAppTab !== "roleDianjing";
         relationStrategyViewEl.hidden = activeAppTab !== "relationStrategy";
+        simpleChatViewEl.hidden = activeAppTab !== "simpleChat";
 
         if (activeAppTab === "roleFengrong") {
           renderRoleBaseForm({
@@ -1812,6 +1833,11 @@ ${session.result.averageScore}`
         if (activeAppTab === "relationStrategy") {
           renderRelationSubTabs();
           renderRelationView();
+        }
+
+        if (activeAppTab === "simpleChat") {
+          renderSimpleChat();
+          bindSimpleChatEvents();
         }
       }
 
@@ -2084,7 +2110,7 @@ ${session.result.averageScore}`
             ? `<span style="color:#6cf;">跃迁发生</span> · ${escapeHtml(t.transition.from)} → ${escapeHtml(t.transition.to)}`
             : `<span style="color:var(--muted);">未跃迁</span>`}</div>`;
           if (t.transition.reason) html += `<div><span class="label">理由</span>：${escapeHtml(t.transition.reason)}</div>`;
-          if (t.transition.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.transition.rawOutput)}</pre></div></details>`;
+          if (t.transition.inputPrompt) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">展开查看完整输入提示词</summary><div class="block"><pre style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">${escapeHtml(t.transition.inputPrompt)}</pre></div></details>`;
         }
         html += `</div></section>`;
 
@@ -2096,7 +2122,7 @@ ${session.result.averageScore}`
         } else {
           html += `<div><span class="label">氛围</span>：<strong>${escapeHtml(t.atmosphere.chatAtm || "无")}</strong></div>`;
           if (t.atmosphere.latencyMs) html += `<div><span class="label">耗时</span>：${t.atmosphere.latencyMs} ms</div>`;
-          if (t.atmosphere.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.atmosphere.rawOutput)}</pre></div></details>`;
+          if (t.atmosphere.inputPrompt) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">展开查看完整输入提示词</summary><div class="block"><pre style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">${escapeHtml(t.atmosphere.inputPrompt)}</pre></div></details>`;
         }
         html += `</div></section>`;
 
@@ -2113,7 +2139,7 @@ ${session.result.averageScore}`
           } else {
             html += `<div><span style="color:#6cf;">已触发</span> · 生成失败或为空</div>`;
           }
-          if (t.regeneration.rawOutput) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">原始输出</summary><div class="block"><pre style="white-space:pre-wrap;max-height:150px;overflow-y:auto;">${escapeHtml(t.regeneration.rawOutput)}</pre></div></details>`;
+          if (t.regeneration.inputPrompt) html += `<details style="margin-top:4px;"><summary class="label" style="cursor:pointer;">展开查看完整输入提示词</summary><div class="block"><pre style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">${escapeHtml(t.regeneration.inputPrompt)}</pre></div></details>`;
         }
         html += `</div></section>`;
 
@@ -2226,6 +2252,7 @@ ${session.result.averageScore}`
             trace.atmosphere = {
               chatAtm: atmData.chatAtm || "",
               rawOutput: atmData.rawOutput || "",
+              inputPrompt: atmData.inputPrompt || "",
               latencyMs: atmData.trace?.latencyMs || 0,
             };
             renderRelationChatTab();
@@ -2255,6 +2282,7 @@ ${session.result.averageScore}`
                 to: transData.to || "",
                 reason: transData.reason || "",
                 rawOutput: transData.rawOutput || "",
+                inputPrompt: transData.inputPrompt || "",
               };
               if (transRes.ok && transData.shouldTransition) {
                 relationTransitionHistory.push({
@@ -2296,7 +2324,7 @@ ${session.result.averageScore}`
           });
           const regenData = await readApiResponse(regenRes);
           const newStages = regenData.evolutionStages || [];
-          trace.regeneration = { triggered: true, result: newStages, rawOutput: regenData.rawOutput || "" };
+          trace.regeneration = { triggered: true, result: newStages, rawOutput: regenData.rawOutput || "", inputPrompt: regenData.inputPrompt || "" };
           if (regenRes.ok && newStages.length > 0) {
             relationEvolutionStages = newStages;
           }
@@ -2304,6 +2332,164 @@ ${session.result.averageScore}`
         } catch (e) {
           trace.regeneration = { triggered: true, result: null, rawOutput: String(e) };
           renderRelationChatTab();
+        }
+      }
+
+      function renderSimpleChatSubTabs() {
+        const tabsEl = document.getElementById("simpleChatSubTabs");
+        if (!tabsEl) return;
+        const tabs = [
+          { id: "chat", label: "对话" },
+          { id: "prompt", label: "修改提示词" },
+        ];
+        tabsEl.innerHTML = tabs.map((t) =>
+          `<button type="button" class="sub-tab ${activeSimpleChatSubTab === t.id ? "active" : ""}" data-sc-subtab="${t.id}">${escapeHtml(t.label)}</button>`
+        ).join("");
+        tabsEl.querySelectorAll("[data-sc-subtab]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeSimpleChatSubTab = btn.getAttribute("data-sc-subtab") || "chat";
+            renderSimpleChatView();
+          });
+        });
+      }
+
+      function renderSimpleChatView() {
+        renderSimpleChatSubTabs();
+        const chatPanel = document.getElementById("simpleChatTabChat");
+        const promptPanel = document.getElementById("simpleChatTabPrompt");
+        if (chatPanel) chatPanel.hidden = activeSimpleChatSubTab !== "chat";
+        if (promptPanel) promptPanel.hidden = activeSimpleChatSubTab !== "prompt";
+        if (activeSimpleChatSubTab === "chat") {
+          renderSimpleChatChatTab();
+        } else {
+          renderSimpleChatPromptTab();
+        }
+      }
+
+      function renderSimpleChatChatTab() {
+        const chatPanel = document.getElementById("simpleChatTabChat");
+        if (!chatPanel) return;
+        const bubbles = simpleChatHistory
+          .filter((m) => m.role !== "system")
+          .map((m) => `<div class="bubble ${m.role}">${escapeHtml(m.content)}</div>`)
+          .join("");
+        chatPanel.innerHTML = `
+          <div class="layout">
+            <div class="left-stack">
+              <section class="panel chat-panel">
+                <div class="panel-header">
+                  <div class="panel-title">无策略对话</div>
+                  <div class="panel-meta">${simpleChatCharIntro
+                    ? `第 ${simpleChatHistory.filter(m => m.role === "assistant").length} 轮 · 模型：seed-sc-260215`
+                    : "填写角色简介后即可开始对话 · 模型：seed-sc-260215"}</div>
+                </div>
+                <div id="simpleChatErr" class="err"></div>
+                <div class="msgs" id="simpleChatMsgs">${bubbles}</div>
+                <div class="composer">
+                  <textarea id="simpleChatInput" rows="2" placeholder="输入一句话开始对话"></textarea>
+                  <button type="button" id="simpleChatSendBtn" ${simpleChatLoading ? "disabled" : ""}>${simpleChatLoading ? "发送中..." : "发送"}</button>
+                </div>
+              </section>
+            </div>
+            <section class="panel trace-panel" style="overflow-y:auto;">
+              <div class="panel-header">
+                <div class="panel-title">角色设定</div>
+              </div>
+              <div class="node-body" style="padding:12px;">
+                <section class="node">
+                  <div class="node-head"><div class="node-title">角色简介</div><div class="node-meta">修改后立刻生效，影响后续对话</div></div>
+                  <div class="node-body">
+                    <textarea id="simpleChatCharIntro" rows="8" style="width:100%;min-height:140px;" placeholder="请填写角色简介">${escapeHtml(simpleChatCharIntro)}</textarea>
+                  </div>
+                </section>
+                <section class="node" style="margin-top:8px;">
+                  <div class="node-head"><div class="node-title">System Prompt</div><div class="node-meta">本轮发送给模型的完整系统提示词</div></div>
+                  <div class="node-body">
+                    ${simpleChatLastSystemPrompt
+                      ? `<details><summary class="label" style="cursor:pointer;">展开查看完整系统提示词</summary><div class="block"><pre style="white-space:pre-wrap;max-height:300px;overflow-y:auto;">${escapeHtml(simpleChatLastSystemPrompt)}</pre></div></details>`
+                      : `<span class="muted">发送消息后在此展示</span>`}
+                  </div>
+                </section>
+              </div>
+            </section>
+          </div>
+        `;
+        bindSimpleChatChatEvents();
+        const msgsEl = document.getElementById("simpleChatMsgs");
+        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+
+      function bindSimpleChatChatEvents() {
+        const introEl = document.getElementById("simpleChatCharIntro");
+        if (introEl) introEl.addEventListener("input", (e) => { simpleChatCharIntro = e.target.value; });
+        const sendBtn = document.getElementById("simpleChatSendBtn");
+        if (sendBtn) sendBtn.addEventListener("click", sendSimpleChatMessage);
+        const inputEl = document.getElementById("simpleChatInput");
+        if (inputEl) inputEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendSimpleChatMessage(); }
+        });
+      }
+
+      function renderSimpleChatPromptTab() {
+        const panel = document.getElementById("simpleChatTabPrompt");
+        if (!panel) return;
+        const currentPrompt = simpleChatPromptOverride || simpleChatPromptDefault || "";
+        panel.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">修改系统提示词</div>
+              <div class="node-meta">修改后立刻影响对话效果，刷新页面或重启服务后恢复默认</div>
+            </div>
+            <div class="node-body" style="display:grid;gap:14px;">
+              <textarea id="simpleChatPromptEditor" rows="20" style="width:100%;min-height:340px;">${escapeHtml(currentPrompt)}</textarea>
+              <div class="control-row" style="gap:8px;">
+                <button type="button" id="simpleChatPromptResetBtn">恢复默认</button>
+              </div>
+            </div>
+          </section>
+        `;
+        const editorEl = document.getElementById("simpleChatPromptEditor");
+        if (editorEl) editorEl.addEventListener("input", (e) => { simpleChatPromptOverride = e.target.value; });
+        const resetBtn = document.getElementById("simpleChatPromptResetBtn");
+        if (resetBtn) resetBtn.addEventListener("click", () => {
+          simpleChatPromptOverride = simpleChatPromptDefault;
+          renderSimpleChatPromptTab();
+        });
+      }
+
+      function renderSimpleChat() { renderSimpleChatView(); }
+      function bindSimpleChatEvents() {}
+
+      async function sendSimpleChatMessage() {
+        const inputEl = document.getElementById("simpleChatInput");
+        const text = inputEl?.value?.trim();
+        if (!text || simpleChatLoading) return;
+        const errEl = document.getElementById("simpleChatErr");
+        if (errEl) errEl.textContent = "";
+        inputEl.value = "";
+        simpleChatHistory.push({ role: "user", content: text });
+        simpleChatLoading = true;
+        renderSimpleChatChatTab();
+
+        try {
+          const res = await fetch("/api/simple-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: simpleChatHistory,
+              charIntro: simpleChatCharIntro,
+              simpleChatPrompt: simpleChatPromptOverride,
+            }),
+          });
+          const data = await readApiResponse(res);
+          if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+          simpleChatHistory.push({ role: "assistant", content: data.assistant?.content || "" });
+          simpleChatLastSystemPrompt = data.systemPrompt || "";
+        } catch (error) {
+          if (errEl) errEl.textContent = error instanceof Error ? error.message : String(error);
+        } finally {
+          simpleChatLoading = false;
+          renderSimpleChatChatTab();
         }
       }
 
@@ -2450,6 +2636,8 @@ ${session.result.averageScore}`
           relationRegeneratePrompt: data.relationRegeneratePrompt || "",
         };
         relationPromptOverrides = { ...relationPromptDefaults };
+        simpleChatPromptDefault = data.simpleChatPrompt || "";
+        simpleChatPromptOverride = simpleChatPromptDefault;
       }
 
       function renderPromptEditor() {
@@ -3345,6 +3533,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       appTabRoleFengrongEl.addEventListener("click", () => setActiveAppTab("roleFengrong"));
       appTabRoleDianjingEl.addEventListener("click", () => setActiveAppTab("roleDianjing"));
       appTabRelationStrategyEl.addEventListener("click", () => setActiveAppTab("relationStrategy"));
+      appTabSimpleChatEl.addEventListener("click", () => setActiveAppTab("simpleChat"));
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
       tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));
