@@ -3452,6 +3452,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
                 userMessage: round.trace?.userInput || "",
                 aiMessage: round.assistant?.content || "",
                 promptOverrides: currentPromptOverrides(),
+                baseProfile: emotionBaseProfile,
               }),
             });
             const data = await readApiResponse(response);

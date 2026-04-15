@@ -106,7 +106,7 @@ const EVALUATION_PROMPT = `# 角色定义
   "stateScore": 1,
   "stateReason": "状态打分原因"
 }`;
-const USER_SIMULATION_PROMPT = `你现在扮演一个正在和角色「恩佐」聊天的普通用户。
+const USER_SIMULATION_PROMPT = `你现在扮演一个正在和角色「{{char_name}}」聊天的普通用户。
 
 任务：根据已有对话上下文，自然地生成“下一句用户发言”。
 
@@ -115,8 +115,8 @@ const USER_SIMULATION_PROMPT = `你现在扮演一个正在和角色「恩佐」
 - 使用中文，长度控制在 1 到 3 句
 - 要像真实用户，会追问、回应、质疑、试探、表达情绪或提出新问题
 - 不要重复上一轮原话，不要只输出“嗯”“哦”这种无效回复
-- 让对话继续推进，给恩佐留下可回应的空间
-- 不要代替恩佐说话`;
+- 让对话继续推进，给{{char_name}}留下可回应的空间
+- 不要代替{{char_name}}说话`;
 const REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演角色「{{char_name}}」。
 请根据以下角色设定，完全代入角色身份与用户进行对话。
 
@@ -1063,10 +1063,10 @@ function buildReplyMessages(history, currentIdt, routeInfo, promptOverrides, bas
 }
 
 function buildEvaluationMessages(
-  { stateKey, directorNotePrompt, userMessage, aiMessage },
+  { stateKey, directorNotePrompt, userMessage, aiMessage, baseProfile },
   promptOverrides
 ) {
-  const prompt = promptOverrides.evaluationPrompt.replace("{{base_prompt}}", BASE_PROFILE)
+  const prompt = promptOverrides.evaluationPrompt.replace("{{base_prompt}}", baseProfile || BASE_PROFILE)
     .replace("{{state_key}}", stateKey || "日常兜底")
     .replace(
       "{{director_note_prompt}}",
@@ -1081,11 +1081,11 @@ function buildEvaluationMessages(
   ];
 }
 
-function buildUserSimulationMessages(history, currentIdt, routeInfo, promptOverrides) {
+function buildUserSimulationMessages(history, currentIdt, routeInfo, promptOverrides, charName) {
   const visibleHistory = history
     .filter((item) => item && typeof item.content === "string" && item.role !== "system")
     .slice(-10)
-    .map((item) => `${item.role === "assistant" ? "恩佐" : "用户"}：${item.content}`)
+    .map((item) => `${item.role === "assistant" ? (charName || "恩佐") : "用户"}：${item.content}`)
     .join("\n");
 
   const stateText = routeInfo.primary
@@ -1095,10 +1095,10 @@ function buildUserSimulationMessages(history, currentIdt, routeInfo, promptOverr
     routeInfo.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。";
 
   return [
-    { role: "system", content: promptOverrides.userSimulationPrompt },
+    { role: "system", content: applyTemplate(promptOverrides.userSimulationPrompt, { char_name: charName || "恩佐" }) },
     {
       role: "user",
-      content: `请基于以下上下文，生成下一句“用户发言”。\n\n当前恩佐状态：${stateText}\n数值感知：${perceptionText}\n当前IDT：I=${currentIdt.i}, D=${currentIdt.d}, T=${currentIdt.t}\n\n最近对话：\n${visibleHistory || "暂无历史，仅作为新一轮对话开始。"}`,
+      content: `请基于以下上下文，生成下一句“用户发言”。\n\n当前${charName || "恩佐"}状态：${stateText}\n数值感知：${perceptionText}\n当前IDT：I=${currentIdt.i}, D=${currentIdt.d}, T=${currentIdt.t}\n\n最近对话：\n${visibleHistory || "暂无历史，仅作为新一轮对话开始。"}`,
     },
   ];
 }
@@ -1274,7 +1274,7 @@ async function simulateEvaluationRound(
   const routeBefore = matchStates(simulatedIdt, stateDefinitions);
   const simulatedUserCall = await callArk(
     apiKey,
-    buildUserSimulationMessages(history, simulatedIdt, routeBefore, promptOverrides),
+    buildUserSimulationMessages(history, simulatedIdt, routeBefore, promptOverrides, charName),
     {
       max_tokens: 140,
       reasoning_effort: "low",
@@ -1302,6 +1302,7 @@ async function simulateEvaluationRound(
           routeBefore.primary?.perception || "当前未命中其他状态区间，自动回退到日常兜底。",
         userMessage,
         aiMessage: assistantMessage,
+        baseProfile,
       },
       promptOverrides
     ),
@@ -1690,6 +1691,7 @@ app.post("/api/evaluate-message", async (req, res) => {
     userMessage,
     aiMessage,
     promptOverrides: rawPromptOverrides,
+    baseProfile: rawBaseProfile,
   } = req.body || {};
 
   if (
@@ -1702,11 +1704,12 @@ app.post("/api/evaluate-message", async (req, res) => {
     });
   }
 
+  const baseProfile = typeof rawBaseProfile === "string" && rawBaseProfile.trim() ? rawBaseProfile : BASE_PROFILE;
   const promptOverrides = normalizePromptOverrides(rawPromptOverrides);
   try {
     const result = await evaluateReply(
       apiKey,
-      { stateKey, directorNotePrompt, userMessage, aiMessage },
+      { stateKey, directorNotePrompt, userMessage, aiMessage, baseProfile },
       promptOverrides
     );
     res.json(result);
