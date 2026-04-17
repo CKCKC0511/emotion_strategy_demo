@@ -724,6 +724,7 @@
           <div class="sub-tabs" id="relationSubTabs"></div>
           <div id="relationInitPanel"></div>
           <div id="relationChatPanel" hidden></div>
+          <div id="relationEvaluationPanel" hidden></div>
           <div id="relationPromptPanel" hidden></div>
         </section>
       </div>
@@ -927,6 +928,7 @@
       const relationSubTabsEl = document.getElementById("relationSubTabs");
       const relationInitPanelEl = document.getElementById("relationInitPanel");
       const relationChatPanelEl = document.getElementById("relationChatPanel");
+      const relationEvaluationPanelEl = document.getElementById("relationEvaluationPanel");
       const relationPromptPanelEl = document.getElementById("relationPromptPanel");
       const roleFengrongWrapEl = document.getElementById("roleFengrongWrap");
       const roleDianjingWrapEl = document.getElementById("roleDianjingWrap");
@@ -996,6 +998,12 @@
       let relationRoundTrace = null;
       let relationPromptDefaults = null;
       let relationPromptOverrides = null;
+      let relationAutoEvaluationSessions = [];
+      let relationAutoEvaluationCounter = 0;
+      let relationEvaluationRounds = 10;
+      let relationEvaluationBatch = null;
+      let relationEvaluationProgress = null;
+      let relationEvaluatingBatch = false;
 
       let simpleChatHistory = [];
       let simpleChatCharIntro = "";
@@ -1469,6 +1477,32 @@ ${session.result.averageScore}`
         }
 
         const isFengrong = kind === "fengrong";
+        const promptFields = isFengrong
+          ? `
+              <div>
+                <div class="label">丰荣提示词</div>
+                <textarea id="rolePromptFengrong" rows="20">${escapeHtml(prompts.fengrongPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="fengrongPrompt">恢复默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">Intro 提示词</div>
+                <textarea id="rolePromptIntro" rows="8">${escapeHtml(prompts.introPrompt || "")}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="introPrompt">恢复默认</button>
+                </div>
+              </div>
+            `
+          : `
+              <div>
+                <div class="label">点睛提示词</div>
+                <textarea id="rolePromptDianjing" rows="22">${escapeHtml(prompts.dianjingPrompt)}</textarea>
+                <div class="control-row" style="margin-top:10px;">
+                  <button type="button" data-reset-role-prompt="dianjingPrompt">恢复默认</button>
+                </div>
+              </div>
+            `;
         return `
           <section class="node">
             <div class="node-head">
@@ -1477,16 +1511,16 @@ ${session.result.averageScore}`
             </div>
             <div class="node-body">
               <div class="chip-row">
-                <span class="chip">${isFengrong ? "丰荣提示词" : "点睛提示词"}</span>
+                ${
+                  isFengrong
+                    ? `<span class="chip">丰荣提示词</span><span class="chip">Intro 提示词</span>`
+                    : `<span class="chip">点睛提示词</span>`
+                }
               </div>
               <div class="muted">修改后会自动用于下一次${isFengrong ? "丰荣" : "点睛"}生成，刷新页面后恢复默认。</div>
+              ${promptFields}
               <div>
-                <div class="label">${isFengrong ? "丰荣提示词" : "点睛提示词"}</div>
-                <textarea id="${isFengrong ? "rolePromptFengrong" : "rolePromptDianjing"}" rows="${
-                  isFengrong ? 24 : 22
-                }">${escapeHtml(isFengrong ? prompts.fengrongPrompt : prompts.dianjingPrompt)}</textarea>
                 <div class="control-row" style="margin-top:10px;">
-                  <button type="button" data-reset-role-prompt="${isFengrong ? "fengrongPrompt" : "dianjingPrompt"}">恢复默认</button>
                   <button type="button" id="${isFengrong ? "resetFengrongPrompt" : "resetDianjingPrompt"}">全部恢复默认</button>
                 </div>
               </div>
@@ -1518,8 +1552,21 @@ ${session.result.averageScore}`
               <div class="node-body">
                 <div class="chip-row">
                   <span class="chip">丰荣耗时 ${fmt(roleFengrongResult.trace?.fengrong?.latencyMs)}ms</span>
+                  <span class="chip">Intro耗时 ${fmt(roleFengrongResult.trace?.intro?.latencyMs)}ms</span>
                 </div>
                 <div class="block"><pre>${escapeHtml(roleFengrongResult.charSet || "-")}</pre></div>
+              </div>
+            </section>
+            <section class="node">
+              <div class="node-head">
+                <div class="node-title">intro</div>
+                <div class="node-meta">基于 Tagline 生成的摘要文案</div>
+              </div>
+              <div class="node-body">
+                <div class="chip-row">
+                  <span class="chip">提取Tagline：${escapeHtml(roleFengrongResult.extractedTagline || "-")}</span>
+                </div>
+                <div class="block"><pre>${escapeHtml(roleFengrongResult.intro || "-")}</pre></div>
               </div>
             </section>
           `;
@@ -1664,7 +1711,10 @@ ${session.result.averageScore}`
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...roleFengrongInput,
-              rolePromptOverrides: { fengrongPrompt: currentRolePromptOverrides().fengrongPrompt },
+              rolePromptOverrides: {
+                fengrongPrompt: currentRolePromptOverrides().fengrongPrompt,
+                introPrompt: currentRolePromptOverrides().introPrompt,
+              },
             }),
           });
           const data = await readApiResponse(response);
@@ -1811,6 +1861,7 @@ ${session.result.averageScore}`
         const tabs = [
           { id: "init", label: "关系策略点睛" },
           { id: "chat", label: "关系策略对话" },
+          { id: "evaluation", label: "评测" },
           { id: "prompts", label: "修改提示词" },
         ];
         relationSubTabsEl.innerHTML = tabs.map((t) =>
@@ -1828,11 +1879,14 @@ ${session.result.averageScore}`
       function renderRelationView() {
         relationInitPanelEl.hidden = activeRelationSubTab !== "init";
         relationChatPanelEl.hidden = activeRelationSubTab !== "chat";
+        relationEvaluationPanelEl.hidden = activeRelationSubTab !== "evaluation";
         relationPromptPanelEl.hidden = activeRelationSubTab !== "prompts";
         if (activeRelationSubTab === "init") {
           renderRelationInitTab();
         } else if (activeRelationSubTab === "chat") {
           renderRelationChatTab();
+        } else if (activeRelationSubTab === "evaluation") {
+          renderRelationEvaluationTab();
         } else if (activeRelationSubTab === "prompts") {
           renderRelationPromptEditor();
         }
@@ -1954,6 +2008,11 @@ ${session.result.averageScore}`
         relationRoundCounter = 0;
         relationCurrentAtmosphere = "";
         relationTransitionHistory = [];
+        relationAutoEvaluationSessions = [];
+        relationAutoEvaluationCounter = 0;
+        relationEvaluationBatch = null;
+        relationEvaluationProgress = null;
+        relationEvaluatingBatch = false;
         renderRelationInitTab();
       }
 
@@ -1980,6 +2039,270 @@ ${session.result.averageScore}`
           .filter((m) => m.role !== "system")
           .map((m) => `${m.role === "user" ? "用户" : "角色"}：${m.content}`)
           .join("\n");
+      }
+
+      function summarizeRelationEvaluationRounds(rounds) {
+        const successful = rounds.filter((item) => !item.error && item.setting && item.coreAttitudeEval && item.boundary);
+        const settingScores = successful.map((item) => item.setting.score);
+        const coreAttitudeScores = successful.map((item) => item.coreAttitudeEval.score);
+        const boundaryScores = successful.map((item) => item.boundary.score);
+        const totalScores = successful.map((item) =>
+          Number.isFinite(Number(item.totalScore))
+            ? Number(item.totalScore)
+            : round2(
+                ((Number(item.setting?.score || 0) +
+                  Number(item.coreAttitudeEval?.score || 0) +
+                  Number(item.boundary?.score || 0)) /
+                  3) *
+                  10
+              )
+        );
+
+        return {
+          totalRounds: rounds.length,
+          successfulRounds: successful.length,
+          failedRounds: rounds.length - successful.length,
+          setting: {
+            average: calcAverage(settingScores),
+            median: calcMedian(settingScores),
+            modes: calcModes(settingScores),
+          },
+          coreAttitude: {
+            average: calcAverage(coreAttitudeScores),
+            median: calcMedian(coreAttitudeScores),
+            modes: calcModes(coreAttitudeScores),
+          },
+          boundary: {
+            average: calcAverage(boundaryScores),
+            median: calcMedian(boundaryScores),
+            modes: calcModes(boundaryScores),
+          },
+          total: {
+            average: calcAverage(totalScores),
+            median: calcMedian(totalScores),
+            modes: calcModes(totalScores),
+          },
+        };
+      }
+
+      function buildRelationEvaluationBatchState(detail, requestedRounds, completedRounds, inProgress, error = "") {
+        return {
+          summary: summarizeRelationEvaluationRounds(detail),
+          detail,
+          requestedRounds,
+          completedRounds,
+          inProgress,
+          error,
+        };
+      }
+
+      function formatRelationEvaluationDetail(item) {
+        if (item.error) {
+          return `第${item.round}轮
+────────────────────
+错误
+${item.error}`;
+        }
+
+        return `第${item.round}轮
+────────────────────
+模拟用户
+${item.simulatedUserMessage || item.userMessage || "-"}
+
+--------------------
+助手回复
+${item.assistantMessage || item.aiMessage || "-"}
+
+--------------------
+关系阶段
+${item.stageCur || "-"}
+
+--------------------
+设定得分
+${item.setting?.score ?? "-"}
+原因：${item.setting?.reason || "-"}
+
+--------------------
+核心态度得分
+${item.coreAttitudeEval?.score ?? "-"}
+原因：${item.coreAttitudeEval?.reason || "-"}
+
+--------------------
+底线边界得分
+${item.boundary?.score ?? "-"}
+原因：${item.boundary?.reason || "-"}
+
+--------------------
+总分
+${item.totalScore ?? "-"}`;
+      }
+
+      function getRelationEvaluationProgressText(fallbackTotal = relationEvaluationRounds) {
+        if (!relationEvaluationProgress) return "";
+        return `已完成 ${relationEvaluationProgress.completed}/${relationEvaluationProgress.total || fallbackTotal} 轮`;
+      }
+
+      function renderRelationAutoEvaluationPanel() {
+        const sessions = relationAutoEvaluationSessions;
+        const runningCount = sessions.filter((item) => item.inProgress).length;
+        const metaText = !sessions.length
+          ? "每轮对话后异步自动评测，不阻塞回复"
+          : runningCount
+          ? `自动评测异步进行中，当前运行 ${runningCount} 个任务`
+          : "最近的对话后自动评测结果";
+
+        const listHtml = !sessions.length
+          ? `<div class="placeholder">发送消息后，这里会按轮次显示自动评测 session。</div>`
+          : sessions
+              .map((session) => {
+                const statusText = session.inProgress
+                  ? "自动评测异步进行中"
+                  : session.error
+                  ? "评测失败"
+                  : "评测完成";
+                const stats = session.result
+                  ? `
+                      <div class="chip-row">
+                        <span class="chip">设定分 ${fmt(session.result.setting?.score)}</span>
+                        <span class="chip">核心态度 ${fmt(session.result.coreAttitudeEval?.score)}</span>
+                        <span class="chip">底线边界 ${fmt(session.result.boundary?.score)}</span>
+                        <span class="chip">总分 ${fmt(session.result.totalScore)}</span>
+                      </div>
+                    `
+                  : "";
+                const detailText = session.result
+                  ? `关系阶段
+${session.result.stageCur || "-"}
+
+--------------------
+设定分
+${session.result.setting?.score ?? "-"}
+原因：${session.result.setting?.reason || "-"}
+
+--------------------
+核心态度分
+${session.result.coreAttitudeEval?.score ?? "-"}
+原因：${session.result.coreAttitudeEval?.reason || "-"}
+
+--------------------
+底线边界分
+${session.result.boundary?.score ?? "-"}
+原因：${session.result.boundary?.reason || "-"}
+
+--------------------
+总分
+${session.result.totalScore ?? "-"}`
+                  : session.error || "等待本轮评测结果...";
+
+                return `
+                  <div class="session-item">
+                    <div class="title">Session ${session.sessionNo} · 第 ${session.roundNo} 轮对话</div>
+                    <div class="meta">${escapeHtml(statusText)}</div>
+                    <div class="muted">${escapeHtml(session.userInput || "-")}</div>
+                    ${stats}
+                    <div class="detail block"><pre>${escapeHtml(detailText)}</pre></div>
+                  </div>
+                `;
+              })
+              .join("");
+
+        return `
+          <section class="panel session-panel">
+            <div class="panel-header">
+              <div class="panel-title">对话后自动评测结果</div>
+              <div class="panel-meta">${escapeHtml(metaText)}</div>
+            </div>
+            <div class="session-list">${listHtml}</div>
+          </section>
+        `;
+      }
+
+      function renderRelationEvaluationBatchPanel() {
+        const isBatchLoading = relationEvaluatingBatch;
+        const batch = relationEvaluationBatch;
+        const progressText = getRelationEvaluationProgressText(batch?.requestedRounds);
+        const statusText = batch?.error
+          ? `评测失败：${batch.error}`
+          : progressText || "固定按 10 轮自动模拟评测";
+        return `
+          <section class="panel">
+            <div class="panel-header">
+              <div class="panel-title">模拟对话评测</div>
+              <div class="panel-meta">${escapeHtml(statusText)}</div>
+            </div>
+            <div class="node-body" style="padding:12px;">
+              <div class="control-row">
+                <button type="button" id="relationRunEvalBatch" ${isBatchLoading ? "disabled" : ""}>
+                  ${isBatchLoading ? "评测中..." : "自动跑 10 轮评测"}
+                </button>
+              </div>
+              ${
+                batch
+                  ? `
+                      <div class="stats-grid" style="margin-top:10px;">
+                        <div class="stats-card">
+                          <div class="title">设定得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.setting.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.setting.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.setting.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">核心态度得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.coreAttitude.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.coreAttitude.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.coreAttitude.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">底线边界得分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.boundary.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.boundary.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.boundary.modes))}</div>
+                        </div>
+                        <div class="stats-card">
+                          <div class="title">总分</div>
+                          <div class="stat-line">均分：${fmt(batch.summary.total.average)}</div>
+                          <div class="stat-line">中位数：${fmt(batch.summary.total.median)}</div>
+                          <div class="stat-line">众数：${escapeHtml(formatModes(batch.summary.total.modes))}</div>
+                        </div>
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div class="label">${escapeHtml(
+                          batch.inProgress
+                            ? `逐轮明细（进行中，已完成 ${batch.completedRounds}/${batch.requestedRounds} 轮）`
+                            : "逐轮明细"
+                        )}</div>
+                        <div class="block"><pre>${escapeHtml(
+                          batch.detail
+                            .map((item) => formatRelationEvaluationDetail(item))
+                            .join("\n\n========================================\n\n")
+                        )}</pre></div>
+                      </div>
+                    `
+                  : ""
+              }
+            </div>
+          </section>
+        `;
+      }
+
+      function renderRelationEvaluationTab() {
+        if (!relationConfigApplied) {
+          relationEvaluationPanelEl.innerHTML = `
+            <section class="node">
+              <div class="node-head"><div class="node-title">评测</div></div>
+              <div class="node-body">
+                <div class="muted">请先前往「关系策略点睛」完成角色关系设定初始化，并点击"应用到关系策略对话"后再开始评测。</div>
+              </div>
+            </section>`;
+          return;
+        }
+
+        relationEvaluationPanelEl.innerHTML = `
+          <div class="left-stack">
+            ${renderRelationEvaluationBatchPanel()}
+          </div>
+        `;
+        bindRelationChatEvents();
       }
 
       function renderRelationChatTab() {
@@ -2021,6 +2344,7 @@ ${session.result.averageScore}`
                   <button type="button" id="relationSendBtn" ${relationChatLoading ? "disabled" : ""}>${relationChatLoading ? "发送中..." : "发送"}</button>
                 </div>
               </section>
+              ${renderRelationAutoEvaluationPanel()}
             </div>
             <section class="panel trace-panel" style="overflow-y:auto;">
               <div class="panel-header">
@@ -2120,7 +2444,9 @@ ${session.result.averageScore}`
       function bindRelationChatEvents() {
         const sendBtn = document.getElementById("relationSendBtn");
         const inputField = document.getElementById("relationInput");
+        const evalBatchBtn = document.getElementById("relationRunEvalBatch");
         if (sendBtn) sendBtn.addEventListener("click", sendRelationMessage);
+        if (evalBatchBtn) evalBatchBtn.addEventListener("click", runRelationEvaluationBatch);
         if (inputField) inputField.addEventListener("keydown", (e) => {
           if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendRelationMessage(); }
         });
@@ -2129,6 +2455,141 @@ ${session.result.averageScore}`
       function showRelationErr(msg) {
         const el = document.getElementById("relationErr");
         if (el) el.textContent = msg || "";
+      }
+
+      function refreshRelationPanelsIfVisible() {
+        if (activeAppTab !== "relationStrategy") return;
+        if (activeRelationSubTab === "chat") {
+          renderRelationChatTab();
+          return;
+        }
+        if (activeRelationSubTab === "evaluation") {
+          renderRelationEvaluationTab();
+        }
+      }
+
+      function startRelationAutoEvaluationSession(input) {
+        relationAutoEvaluationCounter += 1;
+        const session = {
+          id: Date.now() + relationAutoEvaluationCounter,
+          sessionNo: relationAutoEvaluationCounter,
+          roundNo: input.roundNo,
+          userInput: input.userInput || "",
+          inProgress: true,
+          error: "",
+          result: null,
+        };
+        relationAutoEvaluationSessions.unshift(session);
+        refreshRelationPanelsIfVisible();
+
+        (async () => {
+          try {
+            const response = await fetch("/api/relation-evaluate-message", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tagline: relationInitInput.tagline,
+                stageCur: input.stageCur,
+                coreAttitude: input.coreAttitude,
+                boundaryDefinition: input.boundaryDefinition,
+                userMessage: input.userInput,
+                aiMessage: input.aiMessage,
+                relationPromptOverrides: currentRelationPromptOverrides(),
+              }),
+            });
+            const data = await readApiResponse(response);
+            if (!response.ok) {
+              throw new Error(data.error || JSON.stringify(data));
+            }
+            session.result = data;
+          } catch (error) {
+            session.error = error instanceof Error ? error.message : String(error);
+          } finally {
+            session.inProgress = false;
+            refreshRelationPanelsIfVisible();
+          }
+        })();
+      }
+
+      async function runRelationEvaluationBatch() {
+        if (relationEvaluatingBatch) return;
+        if (!relationConfigApplied) {
+          showRelationErr("请先完成关系初始化并应用到关系策略对话");
+          return;
+        }
+
+        relationEvaluatingBatch = true;
+        relationEvaluationProgress = { completed: 0, total: relationEvaluationRounds };
+        let workingMessages = relationChatHistory.map((item) => ({ role: item.role, content: item.content }));
+        const requestedRounds = relationEvaluationRounds;
+        const curSetting = getRelationStageSetting(relationCurrentStage);
+        const nextStage = getRelationNextStage();
+        const nextSetting = getRelationStageSetting(nextStage);
+        const relationConfig = {
+          gender: "男",
+          tagline: relationInitInput.tagline,
+          stageCur: relationCurrentStage,
+          stageSetting: `核心态度：${curSetting.coreAttitude}；底线边界：${curSetting.boundary}`,
+          chatAtm: relationCurrentAtmosphere,
+          stageNext: nextStage,
+          nextCoreAttitude: nextSetting.coreAttitude,
+          nextBoundary: nextSetting.boundary,
+          coreAttitude: curSetting.coreAttitude,
+          boundaryDefinition: curSetting.boundary,
+          charName: "角色",
+        };
+        const detail = [];
+        relationEvaluationBatch = buildRelationEvaluationBatchState(detail, requestedRounds, 0, true);
+        refreshRelationPanelsIfVisible();
+
+        try {
+          for (let index = 0; index < requestedRounds; index += 1) {
+            const response = await fetch("/api/relation-evaluate-round", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messages: workingMessages,
+                relationConfig,
+                relationPromptOverrides: currentRelationPromptOverrides(),
+                round: index + 1,
+              }),
+            });
+            const data = await readApiResponse(response);
+            if (!response.ok) {
+              throw new Error(data.error || JSON.stringify(data));
+            }
+            detail.push(data.detail);
+            workingMessages = data.nextMessages || workingMessages;
+            relationEvaluationProgress = { completed: index + 1, total: requestedRounds };
+            relationEvaluationBatch = buildRelationEvaluationBatchState(
+              detail,
+              requestedRounds,
+              index + 1,
+              true
+            );
+            refreshRelationPanelsIfVisible();
+          }
+
+          relationEvaluationBatch = buildRelationEvaluationBatchState(
+            detail,
+            requestedRounds,
+            requestedRounds,
+            false
+          );
+        } catch (error) {
+          relationEvaluationBatch = buildRelationEvaluationBatchState(
+            detail,
+            requestedRounds,
+            relationEvaluationProgress?.completed || 0,
+            false,
+            error instanceof Error ? error.message : String(error)
+          );
+          showRelationErr(error instanceof Error ? error.message : String(error));
+        } finally {
+          relationEvaluatingBatch = false;
+          relationEvaluationProgress = null;
+          refreshRelationPanelsIfVisible();
+        }
       }
 
       async function sendRelationMessage() {
@@ -2182,6 +2643,14 @@ ${session.result.averageScore}`
           relationRoundCounter += 1;
           trace.round = relationRoundCounter;
           trace.systemPrompt = chatData.systemPrompt || "";
+          startRelationAutoEvaluationSession({
+            roundNo: relationRoundCounter,
+            userInput: text,
+            aiMessage: assistantContent,
+            stageCur: relationCurrentStage,
+            coreAttitude: curSetting.coreAttitude,
+            boundaryDefinition: curSetting.boundary,
+          });
         } catch (error) {
           showRelationErr(error instanceof Error ? error.message : String(error));
           relationChatLoading = false;
@@ -2466,6 +2935,7 @@ ${session.result.averageScore}`
       function currentRolePromptOverrides() {
         return rolePromptOverrides || rolePromptDefaults || {
           fengrongPrompt: "",
+          introPrompt: "",
           dianjingPrompt: "",
         };
       }
@@ -2477,6 +2947,7 @@ ${session.result.averageScore}`
           relationTransitionPrompt: "",
           relationReplyPrompt: "",
           relationRegeneratePrompt: "",
+          relationEvaluationPrompt: "",
         };
       }
 
@@ -2492,6 +2963,7 @@ ${session.result.averageScore}`
           { key: "relationAtmospherePrompt", label: "对话氛围判定提示词" },
           { key: "relationTransitionPrompt", label: "关系跃迁判定提示词" },
           { key: "relationRegeneratePrompt", label: "关系阶段二次生成提示词" },
+          { key: "relationEvaluationPrompt", label: "关系评测提示词" },
         ];
         const fieldsHtml = fields.map((f) => `
           <div>
@@ -2519,7 +2991,14 @@ ${session.result.averageScore}`
 
       function bindRelationPromptEditorEvents() {
         if (!relationPromptOverrides || !relationPromptDefaults) return;
-        const keys = ["relationReplyPrompt", "relationInitPrompt", "relationAtmospherePrompt", "relationTransitionPrompt", "relationRegeneratePrompt"];
+        const keys = [
+          "relationReplyPrompt",
+          "relationInitPrompt",
+          "relationAtmospherePrompt",
+          "relationTransitionPrompt",
+          "relationRegeneratePrompt",
+          "relationEvaluationPrompt",
+        ];
         keys.forEach((key) => {
           const el = document.getElementById("rp_" + key);
           if (el) el.addEventListener("input", (e) => { relationPromptOverrides[key] = e.target.value; });
@@ -2583,10 +3062,12 @@ ${session.result.averageScore}`
         };
         rolePromptDefaults = {
           fengrongPrompt: data.fengrongPrompt || "",
+          introPrompt: data.introPrompt || "",
           dianjingPrompt: data.dianjingPrompt || "",
         };
         rolePromptOverrides = {
           fengrongPrompt: rolePromptDefaults.fengrongPrompt,
+          introPrompt: rolePromptDefaults.introPrompt,
           dianjingPrompt: rolePromptDefaults.dianjingPrompt,
         };
         relationPromptDefaults = {
@@ -2595,6 +3076,7 @@ ${session.result.averageScore}`
           relationTransitionPrompt: data.relationTransitionPrompt || "",
           relationReplyPrompt: data.relationReplyPrompt || "",
           relationRegeneratePrompt: data.relationRegeneratePrompt || "",
+          relationEvaluationPrompt: data.relationEvaluationPrompt || "",
         };
         relationPromptOverrides = { ...relationPromptDefaults };
         simpleChatPromptDefault = data.simpleChatPrompt || "";
@@ -2845,7 +3327,7 @@ ${session.result.averageScore}`
 
         const isFengrong = kind === "fengrong";
         const fieldMap = isFengrong
-          ? { rolePromptFengrong: "fengrongPrompt" }
+          ? { rolePromptFengrong: "fengrongPrompt", rolePromptIntro: "introPrompt" }
           : { rolePromptDianjing: "dianjingPrompt" };
 
         Object.entries(fieldMap).forEach(([elementId, key]) => {
@@ -2860,7 +3342,7 @@ ${session.result.averageScore}`
           button.addEventListener("click", () => {
             const key = button.getAttribute("data-reset-role-prompt");
             if (!key) return;
-            if (isFengrong && key !== "fengrongPrompt") return;
+            if (isFengrong && !["fengrongPrompt", "introPrompt"].includes(key)) return;
             if (!isFengrong && key !== "dianjingPrompt") return;
             rolePromptOverrides[key] = rolePromptDefaults[key];
             if (isFengrong) {
@@ -2881,6 +3363,7 @@ ${session.result.averageScore}`
           resetAllButton.addEventListener("click", () => {
             if (isFengrong) {
               rolePromptOverrides.fengrongPrompt = rolePromptDefaults.fengrongPrompt;
+              rolePromptOverrides.introPrompt = rolePromptDefaults.introPrompt;
               renderRoleFengrongResult();
               bindRoleFengrongResultEvents();
             } else {

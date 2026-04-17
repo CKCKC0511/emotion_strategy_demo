@@ -210,16 +210,19 @@ Task & Output Format
 第二步：注入内在矛盾。 每个角色必须拥有至少一层"表里不一"——但这层矛盾的方向必须由上一步识别的原型决定，而非统一套用"冷酷外壳+创伤内核"。
 第三步：锚定世界观气味。 角色的感官细节（气味、微动作、视觉质感）必须服务于其所处的世界观，而非套用现代都市模板。
 
-除结构性标题外，所有生成的内容必须使用英文输出。
+输出语言硬性约束（必须遵守）：
+- cha_set 的全部字段内容必须使用中文输出；
+- 其中 {{Tagline}} 必须是中文叙事文案；
+- 禁止输出英文句子、英文标签或中英混杂表达（专有名词除外）。
 
 【模板】(cha_set)
 {{name}}：（完全不同于输入变量）
 
 {{gender}}：角色的性别；
 
-{{core tags}}：3-5 个核心标签，每个标签严禁控制在1-3个英文单词。（例如：*Rivals to allies*, *sarcastic shield*, *burnout prodigy*，参考原标签，可以不做变化）
+{{core tags}}：3-5 个核心标签，每个标签使用 2-8 个字的中文短语（例如：冷感克制、锋利幽默、失控边缘）。
 
-{{Tagline}}：（字数不超过250词）请撰写一段极具沉浸感的角色简介。可以参考以下维度（不必包含所有维度，根据角色原型选择最有冲击力的组合），并融合成流畅的叙事，作为一个部分输出：
+{{Tagline}}：（字数不超过250字，必须中文）请撰写一段极具沉浸感的角色简介。可以参考以下维度（不必包含所有维度，根据角色原型选择最有冲击力的组合），并融合成流畅的叙事，作为一个部分输出：
 - 【身份背景】年龄、角色履历。深挖其在所处世界观下的核心价值与专业壁垒。如果角色原型适合"创伤驱动"，则设定一个塑造了其行为逻辑的沉重过往（Trauma）；如果角色原型更偏乐观/混乱，则挖掘其表面之下不为人知的代价或清醒——重点不是"他/她有多惨"，而是"这段经历如何让他/她变成了现在这个人"。
 - 【性格】基于已识别的原型，设定专属于这个角色的"内在矛盾"表达方式。Guarded 型的矛盾是面具裂缝；Sunshine 型的矛盾是笑容背后的重量；Stoic 型的矛盾是强者的极限；Wildcard 型的矛盾是混乱中的底线。避免所有角色都写成"对外冷酷对内柔软"的同一套路。
 - 【习惯】设定契合世界观的感官锚点。气味必须来自角色的生活环境与职业（中世纪骑士是铁锈与马鞍皮革，太空工程师是臭氧与焊接残留，都市黑客是能量饮料与凌晨的冷空气）。微动作必须反映角色的具体心理机制（比如，焦虑型是重复性小动作，压抑型是刻意的纹丝不动，失控型是突然的破坏性释放）。
@@ -229,6 +232,11 @@ Global Constraints (Z世代叙事三大戒律)
 - 【No Toxic Tropes (封杀有毒关系)】：绝对禁止任何形式的荡妇羞辱、爹味说教、单方面的心智打压或强迫行为。所有张力必须建立在"Enthusiastic Consent（积极同意）"和互相尊重智商的基础上。
 - 【Mutual Wreckage, Mutual Rebuild (双向废墟)】：不要写单方面的拯救。最高级的关系是：双方都不完美，都带着裂痕，但选择在彼此面前放下最后一层伪装。展示两个有能力独自存活的人，如何在彼此身上找到"不必独自扛下去"的理由。
 - 【Show the "Competence" (能力即魅力)】：动作描写中要时刻体现角色极强的生存或业务能力。递枪的姿势、敲击代码的节奏、处理伤口的熟练度、谈判桌上一句话扭转局势的分量——这些比刻意的调情更能创造叙事引力。`;
+const INTRO_PROMPT_TEMPLATE = `字数50-100词，基于{{Tagline}}进行summary，语言要有画面感和钩子感，让用户在几秒内决定"我要点进去"。
+输出语言硬性约束（必须遵守）：
+- 必须只输出中文；
+- 禁止输出英文句子、英文标签或中英混杂表达（专有名词除外）；
+- 只输出一段可直接展示的 intro，不要加标题或解释。`;
 const DIANJING_PROMPT_TEMPLATE = `# Role
 你是一位资深的女性向游戏文案主笔兼 AI 陪伴产品架构师，精通心理学、复杂的情感张力（推拉感）设计，以及长线剧情的节奏把控。
 
@@ -557,6 +565,42 @@ const RELATION_REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演�
 - 转换过程必须**自然流畅**，符合角色当前的情绪状态与所处场景，禁止生硬跳转
 - 新话题应与角色设定或当前剧情有关联，而非凭空捏造`;
 
+const RELATION_EVALUATION_PROMPT = `# 角色定义
+你是一个对话情感分析师。你的任务是根据AI角色的设定，与用户当前的关系阶段（stage_enum）及其关系的核心态度（core_attitude）与底线边界（boundary_definition），评估本轮回复质量。
+
+# 输入内容
+1. AI角色设定: {{tagline}}
+2. AI与用户的关系: {{stage_cur}}
+3. AI角色的核心态度: {{core_attitude}}
+4. AI角色的底线边界: {{boundary_definition}}
+5. 用户的输入: {{user_message}}
+6. AI角色输出: {{AI_message}}
+
+# 评测维度
+## 维度一
+- 设定得分: AI角色输出内容是否符合AI角色的设定，1-10分。
+
+## 维度二
+- 核心态度得分: AI角色输出内容是否精准表现AI角色当前的核心态度，1-10分。
+
+## 维度三
+- 底线边界得分: AI角色输出内容是否符合当前的底线边界，1-10分。
+
+# 输出要求
+- 仅输出 JSON，勿带 Markdown 修饰符
+- JSON 字段必须完整，格式如下：
+{
+  "总分": 85,
+  "维度得分": {
+    "设定得分": 8,
+    "设定扣分": "设定打分原因",
+    "核心态度得分": 8,
+    "核心态度扣分": "核心态度打分原因",
+    "底线边界得分": 8,
+    "底线边界扣分": "底线边界打分原因"
+  }
+}`;
+
 const SIMPLE_CHAT_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演一个男性角色。
 请根据以下角色设定，完全代入角色身份与用户进行对话。
 
@@ -651,12 +695,14 @@ function getPromptDefaults() {
     evaluationPrompt: EVALUATION_PROMPT,
     userSimulationPrompt: USER_SIMULATION_PROMPT,
     fengrongPrompt: FENGRONG_PROMPT_TEMPLATE,
+    introPrompt: INTRO_PROMPT_TEMPLATE,
     dianjingPrompt: DIANJING_PROMPT_TEMPLATE,
     relationInitPrompt: RELATION_INIT_PROMPT,
     relationAtmospherePrompt: RELATION_ATMOSPHERE_PROMPT,
     relationTransitionPrompt: RELATION_TRANSITION_PROMPT,
     relationReplyPrompt: RELATION_REPLY_PROMPT_TEMPLATE,
     relationRegeneratePrompt: RELATION_REGENERATE_PROMPT,
+    relationEvaluationPrompt: RELATION_EVALUATION_PROMPT,
     simpleChatPrompt: SIMPLE_CHAT_PROMPT_TEMPLATE,
   };
 }
@@ -704,6 +750,10 @@ function normalizeRolePromptOverrides(input) {
       typeof source.fengrongPrompt === "string" && source.fengrongPrompt.trim()
         ? source.fengrongPrompt
         : defaults.fengrongPrompt,
+    introPrompt:
+      typeof source.introPrompt === "string" && source.introPrompt.trim()
+        ? source.introPrompt
+        : defaults.introPrompt,
     dianjingPrompt:
       typeof source.dianjingPrompt === "string" && source.dianjingPrompt.trim()
         ? source.dianjingPrompt
@@ -736,6 +786,10 @@ function normalizeRelationPromptOverrides(input) {
       typeof source.relationRegeneratePrompt === "string" && source.relationRegeneratePrompt.trim()
         ? source.relationRegeneratePrompt
         : defaults.relationRegeneratePrompt,
+    relationEvaluationPrompt:
+      typeof source.relationEvaluationPrompt === "string" && source.relationEvaluationPrompt.trim()
+        ? source.relationEvaluationPrompt
+        : defaults.relationEvaluationPrompt,
   };
 }
 
@@ -940,6 +994,60 @@ function parseEvaluation(modelOutput) {
   };
 }
 
+function parseRelationEvaluation(modelOutput) {
+  const parsed = extractJsonObject(modelOutput);
+  const dimension = parsed?.["维度得分"] && typeof parsed["维度得分"] === "object"
+    ? parsed["维度得分"]
+    : parsed?.dimensionScores && typeof parsed.dimensionScores === "object"
+      ? parsed.dimensionScores
+      : {};
+
+  const readNumber = (target, keys) => {
+    for (const key of keys) {
+      const value = Number(target?.[key]);
+      if (Number.isFinite(value)) return value;
+    }
+    return NaN;
+  };
+  const readString = (target, keys) => {
+    for (const key of keys) {
+      const value = target?.[key];
+      if (typeof value === "string") return value;
+    }
+    return "";
+  };
+
+  const settingScore = readNumber(dimension, ["设定得分", "settingScore"]);
+  const coreAttitudeScore = readNumber(dimension, ["核心态度得分", "coreAttitudeScore"]);
+  const boundaryScore = readNumber(dimension, ["底线边界得分", "boundaryScore"]);
+
+  if (!Number.isInteger(settingScore) || settingScore < 1 || settingScore > 10) {
+    throw new Error("设定得分必须是 1 到 10 的整数");
+  }
+  if (!Number.isInteger(coreAttitudeScore) || coreAttitudeScore < 1 || coreAttitudeScore > 10) {
+    throw new Error("核心态度得分必须是 1 到 10 的整数");
+  }
+  if (!Number.isInteger(boundaryScore) || boundaryScore < 1 || boundaryScore > 10) {
+    throw new Error("底线边界得分必须是 1 到 10 的整数");
+  }
+
+  const computedTotal = round2(((settingScore + coreAttitudeScore + boundaryScore) / 3) * 10);
+  const rawTotal = Number(parsed?.["总分"] ?? parsed?.totalScore);
+  const totalScore = Number.isFinite(rawTotal) ? clamp(rawTotal, 0, 100) : computedTotal;
+
+  return {
+    totalScore,
+    settingScore,
+    settingReason: readString(dimension, ["设定扣分", "设定原因", "settingReason"]),
+    coreAttitudeScore,
+    coreAttitudeReason: readString(dimension, ["核心态度扣分", "核心态度原因", "coreAttitudeReason"]),
+    boundaryScore,
+    boundaryReason: readString(dimension, ["底线边界扣分", "底线边界原因", "boundaryReason"]),
+    averageScore: round2((settingScore + coreAttitudeScore + boundaryScore) / 3),
+    parsed,
+  };
+}
+
 function calcPad(q) {
   const pleasure = (q.q1 - q.q4 + q.q7 - q.q10) / 4;
   const arousal = (-q.q2 + q.q5 - q.q8 + q.q11) / 4;
@@ -1128,6 +1236,16 @@ function buildFengrongMessages(input, rolePromptOverrides) {
   ];
 }
 
+function buildIntroMessages(tagline, rolePromptOverrides) {
+  const prompt = applyTemplate(rolePromptOverrides.introPrompt, {
+    Tagline: tagline || "",
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请只输出一段可直接展示的 intro 文案。" },
+  ];
+}
+
 function buildDianjingMessages(charSet, rolePromptOverrides) {
   const prompt = applyTemplate(rolePromptOverrides.dianjingPrompt, {
     cha_set: charSet,
@@ -1159,6 +1277,50 @@ function buildRoleInputCharSet(input) {
     `Tagline: ${String(input.tagline || "").trim()}`,
     `opener: ${String(input.opener || "").trim()}`,
   ].join("\n");
+}
+
+function extractTaglineFromCharSet(charSet, fallback = "") {
+  const text = String(charSet || "");
+  const lines = text.split(/\r?\n/);
+
+  const inlineRegexes = [
+    /^(?:\{\{)?Tagline(?:\}\})?\s*[:：]\s*(.+)$/i,
+    /^["'`]?Tagline["'`]?\s*[:：]\s*(.+)$/i,
+  ];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    for (const regex of inlineRegexes) {
+      const match = trimmed.match(regex);
+      if (match?.[1]?.trim()) {
+        return match[1].trim();
+      }
+    }
+  }
+
+  const taglineIndex = lines.findIndex((line) =>
+    /(?:\{\{)?Tagline(?:\}\})?/i.test(line.trim())
+  );
+  if (taglineIndex !== -1) {
+    const collected = [];
+    for (let index = taglineIndex + 1; index < lines.length; index += 1) {
+      const line = lines[index].trim();
+      if (!line) {
+        if (collected.length) break;
+        continue;
+      }
+      if (/^(?:\{\{)?(?:name|gender|core tags|opener|Tagline)(?:\}\})?\s*[:：]/i.test(line)) {
+        break;
+      }
+      collected.push(line);
+      if (collected.join(" ").length >= 240) break;
+    }
+    if (collected.length) return collected.join(" ");
+  }
+
+  const jsonMatch = text.match(/["']Tagline["']\s*:\s*["']([^"']+)["']/i);
+  if (jsonMatch?.[1]?.trim()) return jsonMatch[1].trim();
+  return String(fallback || "").trim();
 }
 
 async function callArk(apiKey, messages, options = {}) {
@@ -1741,16 +1903,30 @@ app.post("/api/role-fengrong", async (req, res) => {
       reasoning_effort: "low",
     });
     const charSet = String(fengrongCall.content || "").trim();
+    const extractedTagline = extractTaglineFromCharSet(charSet, input.tagline);
+    const introCall = await callArk(apiKey, buildIntroMessages(extractedTagline, rolePromptOverrides), {
+      model: ROLE_GEN_MODEL_ID,
+      max_tokens: 220,
+      reasoning_effort: "low",
+    });
+    const intro = String(introCall.content || "").trim();
 
     res.json({
       model: ROLE_GEN_MODEL_ID,
       input,
       charSet,
+      extractedTagline,
+      intro,
       trace: {
         fengrong: {
           latencyMs: fengrongCall.latencyMs,
           usage: fengrongCall.usage,
           output: fengrongCall.content,
+        },
+        intro: {
+          latencyMs: introCall.latencyMs,
+          usage: introCall.usage,
+          output: introCall.content,
         },
       },
     });
@@ -1938,6 +2114,175 @@ function buildRelationReplyMessages(messages, config, promptTemplate) {
   };
 }
 
+function buildRelationEvaluationMessages(input, promptTemplate) {
+  const prompt = applyTemplate(promptTemplate || RELATION_EVALUATION_PROMPT, {
+    tagline: input.tagline || "",
+    stage_cur: input.stageCur || "",
+    core_attitude: input.coreAttitude || "",
+    boundary_definition: input.boundaryDefinition || "",
+    user_message: input.userMessage || "",
+    AI_message: input.aiMessage || "",
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请严格按要求输出评测结果 JSON。" },
+  ];
+}
+
+function buildRelationUserSimulationMessages(messages, relationConfig) {
+  const visibleHistory = messages
+    .filter((item) => item && typeof item.content === "string" && item.role !== "system")
+    .slice(-10)
+    .map((item) => `${item.role === "assistant" ? "角色" : "用户"}：${item.content}`)
+    .join("\n");
+  const charName = relationConfig.charName || "角色";
+  return [
+    {
+      role: "system",
+      content: applyTemplate(USER_SIMULATION_PROMPT, { char_name: charName }),
+    },
+    {
+      role: "user",
+      content: `请基于以下上下文，生成下一句“用户发言”。\n\n当前关系阶段：${relationConfig.stageCur || "未知"}\n核心态度：${relationConfig.coreAttitude || "未提供"}\n底线边界：${relationConfig.boundaryDefinition || "未提供"}\n\n最近对话：\n${visibleHistory || "暂无历史，仅作为新一轮对话开始。"}`,
+    },
+  ];
+}
+
+async function evaluateRelationReply(apiKey, input, relationPrompts) {
+  const evaluationMessages = buildRelationEvaluationMessages(input, relationPrompts.relationEvaluationPrompt);
+  const evaluationInputPrompt = evaluationMessages.find((item) => item.role === "system")?.content || "";
+  const call = await callArk(
+    apiKey,
+    evaluationMessages,
+    {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 260,
+      reasoning_effort: "low",
+    }
+  );
+  const parsed = parseRelationEvaluation(call.content);
+  return {
+    tagline: input.tagline,
+    stageCur: input.stageCur,
+    coreAttitude: input.coreAttitude,
+    boundaryDefinition: input.boundaryDefinition,
+    userMessage: input.userMessage,
+    aiMessage: input.aiMessage,
+    setting: {
+      score: parsed.settingScore,
+      reason: parsed.settingReason,
+    },
+    coreAttitudeEval: {
+      score: parsed.coreAttitudeScore,
+      reason: parsed.coreAttitudeReason,
+    },
+    boundary: {
+      score: parsed.boundaryScore,
+      reason: parsed.boundaryReason,
+    },
+    totalScore: parsed.totalScore,
+    averageScore: parsed.averageScore,
+    inputPrompt: evaluationInputPrompt,
+    rawOutput: call.content,
+    parsedOutput: parsed.parsed,
+    latencyMs: call.latencyMs,
+    usage: call.usage,
+  };
+}
+
+async function simulateRelationEvaluationRound(
+  apiKey,
+  { messages, relationConfig, relationPrompts, roundNumber = 1 }
+) {
+  const history = cloneMessages(messages);
+  const simulationMessages = buildRelationUserSimulationMessages(history, relationConfig);
+  const simulatedUserCall = await callArk(
+    apiKey,
+    simulationMessages,
+    {
+      max_tokens: 140,
+      reasoning_effort: "low",
+    }
+  );
+  const userMessage = String(simulatedUserCall.content || "").trim();
+  history.push({ role: "user", content: userMessage });
+
+  const replyContext = buildRelationReplyMessages(history, relationConfig, relationPrompts.relationReplyPrompt);
+  const assistantCall = await callArk(apiKey, replyContext.messages, {
+    max_tokens: 260,
+    reasoning_effort: "low",
+  });
+  const assistantMessage = String(assistantCall.content || "").trim();
+  history.push({ role: "assistant", content: assistantMessage });
+
+  const evaluationInput = {
+    tagline: relationConfig.tagline || "",
+    stageCur: relationConfig.stageCur || "",
+    coreAttitude: relationConfig.coreAttitude || "",
+    boundaryDefinition: relationConfig.boundaryDefinition || "",
+    userMessage,
+    aiMessage: assistantMessage,
+  };
+
+  try {
+    const evaluation = await evaluateRelationReply(apiKey, evaluationInput, relationPrompts);
+
+    return {
+      detail: {
+        round: roundNumber,
+        simulatedUserMessage: userMessage,
+        assistantMessage,
+        nodes: {
+          simulation: {
+            inputPrompt: simulationMessages.find((item) => item.role === "system")?.content || "",
+            inputContext: simulationMessages.find((item) => item.role === "user")?.content || "",
+            output: userMessage,
+          },
+          reply: {
+            inputPrompt: replyContext.systemPrompt || "",
+            output: assistantMessage,
+          },
+          evaluation: {
+            inputPrompt: evaluation.inputPrompt || "",
+            output: evaluation.rawOutput || "",
+            parsedOutput: evaluation.parsedOutput || null,
+          },
+        },
+        ...evaluation,
+        error: null,
+      },
+      nextMessages: history,
+    };
+  } catch (error) {
+    return {
+      detail: {
+        round: roundNumber,
+        simulatedUserMessage: userMessage,
+        assistantMessage,
+        nodes: {
+          simulation: {
+            inputPrompt: simulationMessages.find((item) => item.role === "system")?.content || "",
+            inputContext: simulationMessages.find((item) => item.role === "user")?.content || "",
+            output: userMessage,
+          },
+          reply: {
+            inputPrompt: replyContext.systemPrompt || "",
+            output: assistantMessage,
+          },
+          evaluation: {
+            inputPrompt: buildRelationEvaluationMessages(evaluationInput, relationPrompts.relationEvaluationPrompt)[0]
+              ?.content || "",
+            output: "",
+            parsedOutput: null,
+          },
+        },
+        error: error instanceof Error ? error.message : "关系策略评测失败",
+      },
+      nextMessages: history,
+    };
+  }
+}
+
 function parseRelationInitOutput(raw) {
   const parsed = extractJsonObject(raw);
   if (!parsed) return { initialStage: "", stageSettings: [], evolutionStages: [], parsed: null };
@@ -2072,6 +2417,87 @@ app.post("/api/relation-chat", async (req, res) => {
     });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "关系策略对话失败" });
+  }
+});
+
+app.post("/api/relation-evaluate-message", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+
+  const {
+    tagline,
+    stageCur,
+    coreAttitude,
+    boundaryDefinition,
+    userMessage,
+    aiMessage,
+    relationPromptOverrides,
+  } = req.body || {};
+
+  if (
+    ![tagline, stageCur, coreAttitude, boundaryDefinition, userMessage, aiMessage].every(
+      (item) => typeof item === "string" && item.trim()
+    )
+  ) {
+    return res.status(400).json({
+      error: "tagline、stageCur、coreAttitude、boundaryDefinition、userMessage、aiMessage 均为必填项",
+    });
+  }
+
+  const relationPrompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  try {
+    const result = await evaluateRelationReply(
+      apiKey,
+      { tagline, stageCur, coreAttitude, boundaryDefinition, userMessage, aiMessage },
+      relationPrompts
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系消息评测失败" });
+  }
+});
+
+app.post("/api/relation-evaluate-round", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+
+  const { messages, relationConfig, relationPromptOverrides, round = 1 } = req.body || {};
+  if (!Array.isArray(messages) || !relationConfig || typeof relationConfig !== "object") {
+    return res.status(400).json({ error: "messages 和 relationConfig 均为必填项" });
+  }
+
+  const relationPrompts = normalizeRelationPromptOverrides(relationPromptOverrides);
+  const stageSettingText =
+    relationConfig.stageSetting ||
+    `核心态度：${relationConfig.coreAttitude || ""}；底线边界：${relationConfig.boundaryDefinition || ""}`;
+  const normalizedRelationConfig = {
+    gender: relationConfig.gender || "男",
+    tagline: relationConfig.tagline || "",
+    stageCur: relationConfig.stageCur || "",
+    stageSetting: stageSettingText,
+    chatAtm: relationConfig.chatAtm || "",
+    stageNext: relationConfig.stageNext || relationConfig.stageCur || "",
+    nextCoreAttitude: relationConfig.nextCoreAttitude || relationConfig.coreAttitude || "",
+    nextBoundary: relationConfig.nextBoundary || relationConfig.boundaryDefinition || "",
+    coreAttitude: relationConfig.coreAttitude || "",
+    boundaryDefinition: relationConfig.boundaryDefinition || "",
+    charName: relationConfig.charName || "角色",
+  };
+
+  try {
+    const result = await simulateRelationEvaluationRound(apiKey, {
+      messages,
+      relationConfig: normalizedRelationConfig,
+      relationPrompts,
+      roundNumber: clamp(Number(round) || 1, 1, 999),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系模拟评测失败" });
   }
 });
 
