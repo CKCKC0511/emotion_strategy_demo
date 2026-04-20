@@ -646,6 +646,7 @@
         <button type="button" class="app-tab" id="appTabRoleFengrong">丰荣</button>
         <button type="button" class="app-tab" id="appTabRelationStrategy">关系策略demo</button>
         <button type="button" class="app-tab" id="appTabSimpleChat">无策略对话</button>
+        <button type="button" class="app-tab" id="appTabSystemPromptDemo">系统提示词demo</button>
       </div>
 
       <div class="app-view" id="emotionStrategyView">
@@ -734,6 +735,16 @@
           <div class="sub-tabs" id="simpleChatSubTabs"></div>
           <div id="simpleChatTabChat"></div>
           <div id="simpleChatTabPrompt" hidden></div>
+        </section>
+      </div>
+
+      <div class="app-view" id="systemPromptDemoView" hidden>
+        <section class="panel" style="padding:18px;">
+          <div class="sub-tabs" id="systemPromptDemoSubTabs"></div>
+          <div id="systemPromptDemoTabVars"></div>
+          <div id="systemPromptDemoTabChatV20" hidden></div>
+          <div id="systemPromptDemoTabChatV21" hidden></div>
+          <div id="systemPromptDemoTabPrompt" hidden></div>
         </section>
       </div>
     </div>
@@ -919,8 +930,10 @@
       const appTabRoleFengrongEl = document.getElementById("appTabRoleFengrong");
       const appTabRelationStrategyEl = document.getElementById("appTabRelationStrategy");
       const appTabSimpleChatEl = document.getElementById("appTabSimpleChat");
+      const appTabSystemPromptDemoEl = document.getElementById("appTabSystemPromptDemo");
       const tabDianjingEl = document.getElementById("tabDianjing");
       const simpleChatViewEl = document.getElementById("simpleChatView");
+      const systemPromptDemoViewEl = document.getElementById("systemPromptDemoView");
       const emotionStrategyViewEl = document.getElementById("emotionStrategyView");
       const roleFengrongViewEl = document.getElementById("roleFengrongView");
       const roleDianjingViewEl = document.getElementById("roleDianjingView");
@@ -1012,6 +1025,61 @@
       let simpleChatPromptOverride = null;
       let simpleChatPromptDefault = null;
       let activeSimpleChatSubTab = "chat";
+      let activeSystemPromptDemoSubTab = "vars";
+      let systemPromptDemoPromptDefaultV20 = null;
+      let systemPromptDemoPromptDefaultV21 = null;
+      let systemPromptDemoPromptOverrideV20 = null;
+      let systemPromptDemoPromptOverrideV21 = null;
+      let systemPromptDemoConfigApplied = false;
+      let systemPromptDemoApplyNotice = "";
+      let systemPromptDemoChatState = {
+        v20: {
+          history: [],
+          loading: false,
+          lastSystemPrompt: "",
+          promptLogs: [],
+        },
+        v21: {
+          history: [],
+          loading: false,
+          lastSystemPrompt: "",
+          promptLogs: [],
+        },
+      };
+      let systemPromptDemoVars = {
+        char_name: "",
+        language: "中文",
+        char_set: "",
+        stage_cur: "",
+        core_attitude_cur: "",
+        boundary_def_cur: "",
+        stage_next: "",
+        core_attitude_next: "",
+        boundary_def_next: "",
+        state_key: "",
+        director_prompt: "",
+        chat_atm: "",
+        soft_shift: "",
+        NSFW_stage: "",
+        NSFW_prompt: "",
+      };
+      const SYSTEM_PROMPT_DEMO_FIELD_LABELS = {
+        char_name: "角色名 (char_name)",
+        language: "输出语言 (language)",
+        char_set: "角色设定 (char_set)",
+        stage_cur: "当前关系阶段 (stage_cur)",
+        core_attitude_cur: "当前阶段核心态度 (core_attitude_cur)",
+        boundary_def_cur: "当前阶段底线边界 (boundary_def_cur)",
+        stage_next: "下一关系阶段 (stage_next)",
+        core_attitude_next: "下一阶段核心态度 (core_attitude_next)",
+        boundary_def_next: "下一阶段底线边界 (boundary_def_next)",
+        state_key: "当前状态 (state_key)",
+        director_prompt: "状态行动逻辑 (director_prompt)",
+        chat_atm: "对话氛围 (chat_atm)",
+        soft_shift: "剧情策略 (soft_shift, 可空)",
+        NSFW_stage: "NSFW阶段 (NSFW_stage)",
+        NSFW_prompt: "NSFW规则 (NSFW_prompt)",
+      };
 
       const ROLE_GLAZE_FIELD_LABELS = {
         name: "角色姓名",
@@ -1814,10 +1882,12 @@ ${session.result.averageScore}`
         appTabRoleFengrongEl.classList.toggle("active", activeAppTab === "roleFengrong");
         appTabRelationStrategyEl.classList.toggle("active", activeAppTab === "relationStrategy");
         appTabSimpleChatEl.classList.toggle("active", activeAppTab === "simpleChat");
+        appTabSystemPromptDemoEl.classList.toggle("active", activeAppTab === "systemPromptDemo");
         emotionStrategyViewEl.hidden = activeAppTab !== "emotionStrategy";
         roleFengrongViewEl.hidden = activeAppTab !== "roleFengrong";
         relationStrategyViewEl.hidden = activeAppTab !== "relationStrategy";
         simpleChatViewEl.hidden = activeAppTab !== "simpleChat";
+        systemPromptDemoViewEl.hidden = activeAppTab !== "systemPromptDemo";
 
         if (activeAppTab === "roleFengrong") {
           renderRoleBaseForm({
@@ -1846,6 +1916,10 @@ ${session.result.averageScore}`
         if (activeAppTab === "simpleChat") {
           renderSimpleChat();
           bindSimpleChatEvents();
+        }
+        if (activeAppTab === "systemPromptDemo") {
+          renderSystemPromptDemo();
+          bindSystemPromptDemoEvents();
         }
       }
 
@@ -2920,6 +2994,349 @@ ${session.result.totalScore ?? "-"}`
         }
       }
 
+      function systemPromptDemoMissingFields() {
+        const requiredKeys = [
+          "char_name",
+          "language",
+          "char_set",
+          "stage_cur",
+          "core_attitude_cur",
+          "boundary_def_cur",
+          "stage_next",
+          "core_attitude_next",
+          "boundary_def_next",
+          "state_key",
+          "director_prompt",
+          "chat_atm",
+          "NSFW_stage",
+          "NSFW_prompt",
+        ];
+        return requiredKeys.filter((key) => !String(systemPromptDemoVars[key] || "").trim());
+      }
+
+      function renderSystemPromptDemoSubTabs() {
+        const tabsEl = document.getElementById("systemPromptDemoSubTabs");
+        if (!tabsEl) return;
+        const tabs = [
+          { id: "vars", label: "变量设置" },
+          { id: "chatV20", label: "聊天v2.0" },
+          { id: "chatV21", label: "聊天v2.1" },
+          { id: "prompt", label: "提示词修改" },
+        ];
+        tabsEl.innerHTML = tabs.map((tab) =>
+          `<button type="button" class="sub-tab ${activeSystemPromptDemoSubTab === tab.id ? "active" : ""}" data-spd-subtab="${tab.id}">${escapeHtml(tab.label)}</button>`
+        ).join("");
+        tabsEl.querySelectorAll("[data-spd-subtab]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeSystemPromptDemoSubTab = btn.getAttribute("data-spd-subtab") || "vars";
+            renderSystemPromptDemoView();
+          });
+        });
+      }
+
+      function renderSystemPromptDemoVarsTab() {
+        const panel = document.getElementById("systemPromptDemoTabVars");
+        if (!panel) return;
+        const fields = Object.keys(SYSTEM_PROMPT_DEMO_FIELD_LABELS)
+          .map((key) => `
+            <div>
+              <div class="label">${escapeHtml(SYSTEM_PROMPT_DEMO_FIELD_LABELS[key])}</div>
+              <textarea id="spdVar_${key}" rows="${key === "char_set" || key === "NSFW_prompt" ? 5 : 3}" style="width:100%;min-height:90px;">${escapeHtml(systemPromptDemoVars[key] || "")}</textarea>
+            </div>
+          `)
+          .join("");
+        const missing = systemPromptDemoMissingFields();
+        panel.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">变量设置</div>
+              <div class="node-meta">先填写并应用变量，随后才能进入聊天</div>
+            </div>
+            <div class="node-body" style="display:grid;gap:12px;">
+              ${fields}
+              <div class="control-row">
+                <button type="button" id="systemPromptDemoApplyVarsBtn">应用变量并开始聊天</button>
+              </div>
+              ${
+                systemPromptDemoConfigApplied
+                  ? `<div class="muted">${escapeHtml(systemPromptDemoApplyNotice || "变量已应用，可切换到「聊天」tab 开始对话。")}</div>`
+                  : `<div class="muted">${missing.length ? `当前有 ${missing.length} 个变量为空，也可以直接应用。` : "可直接点击应用按钮开始聊天。"} </div>`
+              }
+            </div>
+          </section>
+        `;
+      }
+
+      function getSystemPromptDemoChatState(version) {
+        return systemPromptDemoChatState[version] || systemPromptDemoChatState.v20;
+      }
+
+      function currentSystemPromptDemoPrompt(version) {
+        return version === "v2.1"
+          ? systemPromptDemoPromptOverrideV21 || systemPromptDemoPromptDefaultV21 || ""
+          : systemPromptDemoPromptOverrideV20 || systemPromptDemoPromptDefaultV20 || "";
+      }
+
+      function renderSystemPromptLogs(logs) {
+        if (!logs.length) return `<span class="muted">发送消息后在此展示</span>`;
+        return logs
+          .map(
+            (item) => `
+              <section class="node" style="margin-top:8px;">
+                <div class="node-head">
+                  <div class="node-title">第 ${item.round} 轮系统提示词</div>
+                  <div class="node-meta">对应用户输入：${escapeHtml(item.userMessage || "-")}</div>
+                </div>
+                <div class="node-body">
+                  <div class="block"><pre style="white-space:pre-wrap;max-height:240px;overflow-y:auto;">${escapeHtml(item.systemPrompt || "-")}</pre></div>
+                </div>
+              </section>
+            `
+          )
+          .join("");
+      }
+
+      function renderSystemPromptDemoChatTab(version) {
+        const panel = document.getElementById(version === "v2.1" ? "systemPromptDemoTabChatV21" : "systemPromptDemoTabChatV20");
+        if (!panel) return;
+        if (!systemPromptDemoConfigApplied) {
+          panel.innerHTML = `
+            <section class="node">
+              <div class="node-head"><div class="node-title">聊天${version === "v2.1" ? "v2.1" : "v2.0"}</div></div>
+              <div class="node-body">
+                <div class="muted">请先在「变量设置」tab 点击“应用变量并开始聊天”。变量可部分为空。</div>
+              </div>
+            </section>
+          `;
+          return;
+        }
+        const state = getSystemPromptDemoChatState(version === "v2.1" ? "v21" : "v20");
+        const bubbles = state.history
+          .filter((m) => m.role !== "system")
+          .map((m) => `<div class="bubble ${m.role}">${escapeHtml(m.content)}</div>`)
+          .join("");
+        const versionKey = version === "v2.1" ? "v21" : "v20";
+        panel.innerHTML = `
+          <div class="layout">
+            <div class="left-stack">
+              <section class="panel chat-panel">
+                <div class="panel-header">
+                  <div class="panel-title">系统提示词对话 ${version === "v2.1" ? "v2.1" : "v2.0"}</div>
+                  <div class="panel-meta">第 ${state.history.filter((m) => m.role === "assistant").length} 轮 · 模型：seed-sc-260215</div>
+                </div>
+                <div id="systemPromptDemoErr_${versionKey}" class="err"></div>
+                <div class="msgs" id="systemPromptDemoMsgs_${versionKey}">${bubbles}</div>
+                <div class="composer">
+                  <textarea id="systemPromptDemoInput_${versionKey}" rows="2" placeholder="输入一句话开始对话"></textarea>
+                  <button type="button" id="systemPromptDemoSendBtn_${versionKey}" ${state.loading ? "disabled" : ""}>${state.loading ? "发送中..." : "发送"}</button>
+                </div>
+              </section>
+            </div>
+            <section class="panel trace-panel" style="overflow-y:auto;">
+              <div class="panel-header">
+                <div class="panel-title">每轮系统提示词（喂给模型）</div>
+              </div>
+              <div class="node-body" style="padding:12px;">
+                ${renderSystemPromptLogs(state.promptLogs)}
+              </div>
+            </section>
+          </div>
+        `;
+        const msgsEl = document.getElementById(`systemPromptDemoMsgs_${versionKey}`);
+        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+
+      function renderSystemPromptDemoPromptTab() {
+        const panel = document.getElementById("systemPromptDemoTabPrompt");
+        if (!panel) return;
+        const promptV20 = currentSystemPromptDemoPrompt("v2.0");
+        const promptV21 = currentSystemPromptDemoPrompt("v2.1");
+        panel.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">提示词修改</div>
+              <div class="node-meta">可分别修改聊天v2.0与聊天v2.1，刷新后恢复默认</div>
+            </div>
+            <div class="node-body" style="display:grid;gap:12px;">
+              <div>
+                <div class="label">聊天v2.0 提示词</div>
+                <textarea id="systemPromptDemoPromptEditorV20" rows="18" style="width:100%;min-height:280px;">${escapeHtml(promptV20)}</textarea>
+                <div class="control-row" style="margin-top:8px;">
+                  <button type="button" id="systemPromptDemoPromptResetBtnV20">恢复v2.0默认</button>
+                </div>
+              </div>
+              <div>
+                <div class="label">聊天v2.1 提示词</div>
+                <textarea id="systemPromptDemoPromptEditorV21" rows="18" style="width:100%;min-height:280px;">${escapeHtml(promptV21)}</textarea>
+                <div class="control-row" style="margin-top:8px;">
+                  <button type="button" id="systemPromptDemoPromptResetBtnV21">恢复v2.1默认</button>
+                </div>
+              </div>
+              <div class="control-row">
+                <button type="button" id="systemPromptDemoPromptResetBtnAll">全部恢复默认</button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderSystemPromptDemoView() {
+        renderSystemPromptDemoSubTabs();
+        const varsPanel = document.getElementById("systemPromptDemoTabVars");
+        const chatPanelV20 = document.getElementById("systemPromptDemoTabChatV20");
+        const chatPanelV21 = document.getElementById("systemPromptDemoTabChatV21");
+        const promptPanel = document.getElementById("systemPromptDemoTabPrompt");
+        if (varsPanel) varsPanel.hidden = activeSystemPromptDemoSubTab !== "vars";
+        if (chatPanelV20) chatPanelV20.hidden = activeSystemPromptDemoSubTab !== "chatV20";
+        if (chatPanelV21) chatPanelV21.hidden = activeSystemPromptDemoSubTab !== "chatV21";
+        if (promptPanel) promptPanel.hidden = activeSystemPromptDemoSubTab !== "prompt";
+        if (activeSystemPromptDemoSubTab === "vars") {
+          renderSystemPromptDemoVarsTab();
+        } else if (activeSystemPromptDemoSubTab === "chatV20") {
+          renderSystemPromptDemoChatTab("v2.0");
+        } else if (activeSystemPromptDemoSubTab === "chatV21") {
+          renderSystemPromptDemoChatTab("v2.1");
+        } else {
+          renderSystemPromptDemoPromptTab();
+        }
+        bindSystemPromptDemoEvents();
+      }
+
+      function bindSystemPromptDemoEvents() {
+        const applyBtn = document.getElementById("systemPromptDemoApplyVarsBtn");
+        if (applyBtn) {
+          applyBtn.addEventListener("click", () => {
+            Object.keys(SYSTEM_PROMPT_DEMO_FIELD_LABELS).forEach((key) => {
+              const field = document.getElementById("spdVar_" + key);
+              if (field) systemPromptDemoVars[key] = field.value;
+            });
+            const missing = systemPromptDemoMissingFields();
+            showErr("");
+            systemPromptDemoConfigApplied = true;
+            systemPromptDemoApplyNotice = missing.length
+              ? `应用成功。当前有 ${missing.length} 个变量为空：${missing
+                  .map((key) => SYSTEM_PROMPT_DEMO_FIELD_LABELS[key])
+                  .join("、")}。`
+              : "应用成功，可切换到「聊天v2.0」或「聊天v2.1」开始对话。";
+            systemPromptDemoChatState = {
+              v20: { history: [], loading: false, lastSystemPrompt: "", promptLogs: [] },
+              v21: { history: [], loading: false, lastSystemPrompt: "", promptLogs: [] },
+            };
+            activeSystemPromptDemoSubTab = "chatV20";
+            renderSystemPromptDemoView();
+            bindSystemPromptDemoEvents();
+          });
+        }
+
+        Object.keys(SYSTEM_PROMPT_DEMO_FIELD_LABELS).forEach((key) => {
+          const field = document.getElementById("spdVar_" + key);
+          if (!field) return;
+          field.addEventListener("input", (e) => {
+            systemPromptDemoVars[key] = e.target.value;
+            systemPromptDemoConfigApplied = false;
+            systemPromptDemoApplyNotice = "";
+          });
+        });
+
+        const bindChatEvents = (versionKey, versionLabel) => {
+          const sendBtn = document.getElementById(`systemPromptDemoSendBtn_${versionKey}`);
+          if (sendBtn) sendBtn.addEventListener("click", () => sendSystemPromptDemoMessage(versionLabel));
+          const input = document.getElementById(`systemPromptDemoInput_${versionKey}`);
+          if (!input) return;
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendSystemPromptDemoMessage(versionLabel);
+            }
+          });
+        };
+        bindChatEvents("v20", "v2.0");
+        bindChatEvents("v21", "v2.1");
+
+        const promptEditorV20 = document.getElementById("systemPromptDemoPromptEditorV20");
+        if (promptEditorV20) {
+          promptEditorV20.addEventListener("input", (e) => {
+            systemPromptDemoPromptOverrideV20 = e.target.value;
+          });
+        }
+        const promptEditorV21 = document.getElementById("systemPromptDemoPromptEditorV21");
+        if (promptEditorV21) {
+          promptEditorV21.addEventListener("input", (e) => {
+            systemPromptDemoPromptOverrideV21 = e.target.value;
+          });
+        }
+        const resetV20 = document.getElementById("systemPromptDemoPromptResetBtnV20");
+        if (resetV20) {
+          resetV20.addEventListener("click", () => {
+            systemPromptDemoPromptOverrideV20 = systemPromptDemoPromptDefaultV20;
+            renderSystemPromptDemoPromptTab();
+            bindSystemPromptDemoEvents();
+          });
+        }
+        const resetV21 = document.getElementById("systemPromptDemoPromptResetBtnV21");
+        if (resetV21) {
+          resetV21.addEventListener("click", () => {
+            systemPromptDemoPromptOverrideV21 = systemPromptDemoPromptDefaultV21;
+            renderSystemPromptDemoPromptTab();
+            bindSystemPromptDemoEvents();
+          });
+        }
+        const resetAll = document.getElementById("systemPromptDemoPromptResetBtnAll");
+        if (resetAll) {
+          resetAll.addEventListener("click", () => {
+            systemPromptDemoPromptOverrideV20 = systemPromptDemoPromptDefaultV20;
+            systemPromptDemoPromptOverrideV21 = systemPromptDemoPromptDefaultV21;
+            renderSystemPromptDemoPromptTab();
+            bindSystemPromptDemoEvents();
+          });
+        }
+      }
+
+      function renderSystemPromptDemo() { renderSystemPromptDemoView(); }
+
+      async function sendSystemPromptDemoMessage(version = "v2.0") {
+        const versionKey = version === "v2.1" ? "v21" : "v20";
+        const state = getSystemPromptDemoChatState(versionKey);
+        const input = document.getElementById(`systemPromptDemoInput_${versionKey}`);
+        const text = input?.value?.trim();
+        if (!text || state.loading) return;
+        const errEl = document.getElementById(`systemPromptDemoErr_${versionKey}`);
+        if (errEl) errEl.textContent = "";
+        input.value = "";
+        state.history.push({ role: "user", content: text });
+        state.loading = true;
+        renderSystemPromptDemoChatTab(version);
+        bindSystemPromptDemoEvents();
+
+        try {
+          const res = await fetch("/api/system-prompt-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: state.history,
+              variables: systemPromptDemoVars,
+              systemPromptTemplate: currentSystemPromptDemoPrompt(version),
+              systemPromptVersion: version,
+            }),
+          });
+          const data = await readApiResponse(res);
+          if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+          state.history.push({ role: "assistant", content: data.assistant?.content || "" });
+          state.lastSystemPrompt = data.systemPrompt || "";
+          state.promptLogs.push({
+            round: state.history.filter((item) => item.role === "assistant").length,
+            userMessage: text,
+            systemPrompt: data.systemPrompt || "",
+          });
+        } catch (error) {
+          if (errEl) errEl.textContent = error instanceof Error ? error.message : String(error);
+        } finally {
+          state.loading = false;
+          renderSystemPromptDemoChatTab(version);
+          bindSystemPromptDemoEvents();
+        }
+      }
+
       function currentPromptOverrides() {
         return promptOverrides || promptDefaults || {
           replyPrompt: "",
@@ -3078,6 +3495,12 @@ ${session.result.totalScore ?? "-"}`
         relationPromptOverrides = { ...relationPromptDefaults };
         simpleChatPromptDefault = data.simpleChatPrompt || "";
         simpleChatPromptOverride = simpleChatPromptDefault;
+        systemPromptDemoPromptDefaultV20 =
+          data.systemPromptDemoPromptV20 || data.systemPromptDemoPrompt || "";
+        systemPromptDemoPromptDefaultV21 =
+          data.systemPromptDemoPromptV21 || data.systemPromptDemoPrompt || "";
+        systemPromptDemoPromptOverrideV20 = systemPromptDemoPromptDefaultV20;
+        systemPromptDemoPromptOverrideV21 = systemPromptDemoPromptDefaultV21;
       }
 
       function renderPromptEditor() {
@@ -4029,6 +4452,7 @@ ${escapeHtml(idt.delta.formulas.t)}</pre>
       appTabRoleFengrongEl.addEventListener("click", () => setActiveAppTab("roleFengrong"));
       appTabRelationStrategyEl.addEventListener("click", () => setActiveAppTab("relationStrategy"));
       appTabSimpleChatEl.addEventListener("click", () => setActiveAppTab("simpleChat"));
+      appTabSystemPromptDemoEl.addEventListener("click", () => setActiveAppTab("systemPromptDemo"));
       tabNodesEl.addEventListener("click", () => setActiveTab("nodes"));
       tabEvaluationEl.addEventListener("click", () => setActiveTab("evaluation"));
       tabRoleSettingsEl.addEventListener("click", () => setActiveTab("roleSettings"));
