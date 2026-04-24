@@ -484,6 +484,33 @@ const RELATION_REGENERATE_PROMPT = `你是一个拥有极高文学素养的心�
 ## 输出要求
 请只返回 JSON，不要 markdown，不要代码块，不要额外解释。
 { "evolutionStages": ["", "", ""] }`;
+const RELATION_TRANSITION_JUDGE_PROMPT = `# 角色
+你是世界上最擅长人物情感设定的分析师，能够根据角色设定{{Tagline}}和对话内容{{chat_history}}，来执行关系分析相关的任务。
+比如，你能够通过角色设定和人物之间的对话内容，判断人物之间当前的关系是暧昧期，还是初识期。
+
+# 任务
+你要根据关系阶段设定{{stage_set}}，通过分析对话内容{{chat_history}}和{{Tagline}}，结合跃迁法则，判断他们的关系是否可以跨越进入下一阶段。
+
+## 跃迁法则
+1. 必须要有"关键事件"，才能同意跃迁，比如一方向另一方表白，并且另一方同意，则是从暧昧期跃迁到热恋期；
+2. 如果评估认为时机未到，请保持在当前阶段；
+3. 跃迁到新的阶段后，下次跃迁目标顺延，比如当前阶段是冷战期，之后是暧昧期和热恋期，跃迁到暧昧期后，下一个阶段应该是热恋期
+
+## 任务输入
+1. 人物设定：{{Tagline}}
+2. 对话内容：{{chat_history}}
+3. 关系阶段设定：{{stage_set}}
+4. 当前关系阶段：{{stage_cur}}
+5. 下一阶段：{{stage_next}}
+
+## 输出要求
+请只返回 JSON，不要 markdown，不要代码块，不要额外解释。
+{
+  "shouldTransition": true,
+  "from": "",
+  "to": "",
+  "reason": ""
+}`;
 
 const RELATION_REPLY_PROMPT_TEMPLATE = `你是一位专业的小说角色扮演专家，当前扮演一个{{gender}}性角色。
 请根据以下角色设定，完全代入角色身份与用户进行对话。
@@ -2302,6 +2329,20 @@ function buildRelationTransitionMessages(tagline, chatHistory, stageSet, stageCu
   ];
 }
 
+function buildRelationTransitionJudgeMessages(tagline, chatHistory, stageSet, stageCur, stageNext) {
+  const prompt = applyTemplate(RELATION_TRANSITION_JUDGE_PROMPT, {
+    Tagline: tagline,
+    chat_history: chatHistory,
+    stage_set: stageSet,
+    stage_cur: stageCur,
+    stage_next: stageNext,
+  });
+  return [
+    { role: "system", content: prompt },
+    { role: "user", content: "请判断是否可以发生关系跃迁，只返回 JSON。" },
+  ];
+}
+
 function buildRelationReplyMessages(messages, config, promptTemplate) {
   const stageSetting = config.stageSetting || "";
   const systemPrompt = applyTemplate(promptTemplate || RELATION_REPLY_PROMPT_TEMPLATE, {
@@ -2755,6 +2796,42 @@ app.post("/api/relation-transition", async (req, res) => {
     });
     const result = parseRelationTransitionOutput(call.content);
     res.json({ ...result, rawOutput: call.content, inputPrompt, trace: { latencyMs: call.latencyMs, usage: call.usage } });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : "关系跃迁判定失败" });
+  }
+});
+
+app.post("/api/relation-transition-judge", async (req, res) => {
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "缺少 ARK_API_KEY" });
+  }
+  const { tagline, chatHistory, stageSet, stageCur, stageNext } = req.body || {};
+  if (!chatHistory?.trim() || !stageCur?.trim() || !stageNext?.trim() || !stageSet?.trim()) {
+    return res.status(400).json({ error: "chatHistory、stageSet、stageCur、stageNext 均为必填项" });
+  }
+  try {
+    const msgs = buildRelationTransitionJudgeMessages(
+      tagline || "",
+      chatHistory,
+      stageSet,
+      stageCur,
+      stageNext
+    );
+    const call = await callArk(apiKey, msgs, {
+      model: AUTO_EVAL_MODEL_ID,
+      max_tokens: 300,
+      reasoning_effort: "low",
+    });
+    const result = parseRelationTransitionOutput(call.content);
+    res.json({
+      shouldTransition: Boolean(result.shouldTransition),
+      from: result.from || stageCur,
+      to: result.to || stageNext,
+      reason: result.reason || "",
+      rawOutput: call.content,
+      trace: { latencyMs: call.latencyMs, usage: call.usage },
+    });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "关系跃迁判定失败" });
   }

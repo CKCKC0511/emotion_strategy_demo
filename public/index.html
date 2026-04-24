@@ -725,6 +725,7 @@
           <div class="sub-tabs" id="relationSubTabs"></div>
           <div id="relationInitPanel"></div>
           <div id="relationChatPanel" hidden></div>
+          <div id="relationTransitionPanel" hidden></div>
           <div id="relationEvaluationPanel" hidden></div>
           <div id="relationPromptPanel" hidden></div>
         </section>
@@ -941,6 +942,7 @@
       const relationSubTabsEl = document.getElementById("relationSubTabs");
       const relationInitPanelEl = document.getElementById("relationInitPanel");
       const relationChatPanelEl = document.getElementById("relationChatPanel");
+      const relationTransitionPanelEl = document.getElementById("relationTransitionPanel");
       const relationEvaluationPanelEl = document.getElementById("relationEvaluationPanel");
       const relationPromptPanelEl = document.getElementById("relationPromptPanel");
       const roleFengrongWrapEl = document.getElementById("roleFengrongWrap");
@@ -1017,6 +1019,14 @@
       let relationEvaluationBatch = null;
       let relationEvaluationProgress = null;
       let relationEvaluatingBatch = false;
+      let relationTransitionJudgeLoading = false;
+      let relationTransitionJudgeResult = null;
+      let relationTransitionJudgeInput = {
+        chatHistory: "",
+        stageCur: "",
+        stageNext: "",
+        stageSet: "",
+      };
 
       let simpleChatHistory = [];
       let simpleChatCharIntro = "";
@@ -1932,6 +1942,7 @@ ${session.result.averageScore}`
         const tabs = [
           { id: "init", label: "关系策略点睛" },
           { id: "chat", label: "关系策略对话" },
+          { id: "transition", label: "关系跃迁" },
           { id: "evaluation", label: "评测" },
           { id: "prompts", label: "修改提示词" },
         ];
@@ -1950,12 +1961,15 @@ ${session.result.averageScore}`
       function renderRelationView() {
         relationInitPanelEl.hidden = activeRelationSubTab !== "init";
         relationChatPanelEl.hidden = activeRelationSubTab !== "chat";
+        relationTransitionPanelEl.hidden = activeRelationSubTab !== "transition";
         relationEvaluationPanelEl.hidden = activeRelationSubTab !== "evaluation";
         relationPromptPanelEl.hidden = activeRelationSubTab !== "prompts";
         if (activeRelationSubTab === "init") {
           renderRelationInitTab();
         } else if (activeRelationSubTab === "chat") {
           renderRelationChatTab();
+        } else if (activeRelationSubTab === "transition") {
+          renderRelationTransitionTab();
         } else if (activeRelationSubTab === "evaluation") {
           renderRelationEvaluationTab();
         } else if (activeRelationSubTab === "prompts") {
@@ -2374,6 +2388,155 @@ ${session.result.totalScore ?? "-"}`
           </div>
         `;
         bindRelationChatEvents();
+      }
+
+      function renderRelationTransitionTab() {
+        const fallbackCurSetting = getRelationStageSetting(relationCurrentStage);
+        if (!relationTransitionJudgeInput.stageCur && relationCurrentStage) {
+          relationTransitionJudgeInput.stageCur = relationCurrentStage;
+        }
+        if (!relationTransitionJudgeInput.stageSet && fallbackCurSetting) {
+          relationTransitionJudgeInput.stageSet = `核心态度：${fallbackCurSetting.coreAttitude || ""}；底线边界：${fallbackCurSetting.boundary || ""}`;
+        }
+        if (!relationTransitionJudgeInput.stageNext) {
+          relationTransitionJudgeInput.stageNext = getRelationNextStage() || "";
+        }
+
+        const result = relationTransitionJudgeResult;
+        relationTransitionPanelEl.innerHTML = `
+          <section class="node">
+            <div class="node-head">
+              <div class="node-title">关系跃迁判定</div>
+              <div class="node-meta">输入 10 轮对话（20句话）+ 当前阶段信息，输出是否可跃迁</div>
+            </div>
+            <div class="node-body" style="display:grid;gap:12px;">
+              <div>
+                <div class="label">对话内容（建议 10 轮=20句话）</div>
+                <textarea id="relationTransitionChatHistoryInput" rows="14" style="width:100%;min-height:220px;" placeholder="示例：\n用户：...\n角色：...\n...">${escapeHtml(
+                  relationTransitionJudgeInput.chatHistory
+                )}</textarea>
+              </div>
+              <div class="control-row">
+                <div style="flex:1;min-width:220px;">
+                  <div class="label">当前阶段</div>
+                  <input id="relationTransitionStageCurInput" type="text" value="${escapeHtml(
+                    relationTransitionJudgeInput.stageCur
+                  )}" placeholder="如：暧昧期" />
+                </div>
+                <div style="flex:1;min-width:220px;">
+                  <div class="label">下一阶段</div>
+                  <input id="relationTransitionStageNextInput" type="text" value="${escapeHtml(
+                    relationTransitionJudgeInput.stageNext
+                  )}" placeholder="如：热恋期" />
+                </div>
+              </div>
+              <div>
+                <div class="label">当前阶段设定</div>
+                <textarea id="relationTransitionStageSetInput" rows="4" style="width:100%;min-height:100px;" placeholder="填写当前阶段设定（核心态度、底线边界）">${escapeHtml(
+                  relationTransitionJudgeInput.stageSet
+                )}</textarea>
+              </div>
+              <div class="control-row">
+                <button type="button" id="relationTransitionRunBtn" ${relationTransitionJudgeLoading ? "disabled" : ""}>
+                  ${relationTransitionJudgeLoading ? "判定中..." : "执行跃迁判定"}
+                </button>
+              </div>
+            </div>
+          </section>
+          ${
+            result
+              ? `
+                  <section class="node" style="margin-top:10px;">
+                    <div class="node-head">
+                      <div class="node-title">判定结果</div>
+                      <div class="node-meta">${result.shouldTransition ? "是" : "否"}</div>
+                    </div>
+                    <div class="node-body">
+                      <div class="chip-row">
+                        <span class="chip">是否跃迁：${result.shouldTransition ? "是" : "否"}</span>
+                        <span class="chip">${escapeHtml(result.from || "-")} → ${escapeHtml(result.to || "-")}</span>
+                      </div>
+                      <div class="label" style="margin-top:8px;">理由</div>
+                      <div class="block"><pre>${escapeHtml(result.reason || "-")}</pre></div>
+                    </div>
+                  </section>
+                `
+              : ""
+          }
+        `;
+        bindRelationTransitionEvents();
+      }
+
+      function bindRelationTransitionEvents() {
+        const chatHistoryInput = document.getElementById("relationTransitionChatHistoryInput");
+        if (chatHistoryInput) {
+          chatHistoryInput.addEventListener("input", (e) => {
+            relationTransitionJudgeInput.chatHistory = e.target.value;
+          });
+        }
+        const stageCurInput = document.getElementById("relationTransitionStageCurInput");
+        if (stageCurInput) {
+          stageCurInput.addEventListener("input", (e) => {
+            relationTransitionJudgeInput.stageCur = e.target.value;
+          });
+        }
+        const stageNextInput = document.getElementById("relationTransitionStageNextInput");
+        if (stageNextInput) {
+          stageNextInput.addEventListener("input", (e) => {
+            relationTransitionJudgeInput.stageNext = e.target.value;
+          });
+        }
+        const stageSetInput = document.getElementById("relationTransitionStageSetInput");
+        if (stageSetInput) {
+          stageSetInput.addEventListener("input", (e) => {
+            relationTransitionJudgeInput.stageSet = e.target.value;
+          });
+        }
+        const runBtn = document.getElementById("relationTransitionRunBtn");
+        if (runBtn) {
+          runBtn.addEventListener("click", runRelationTransitionJudge);
+        }
+      }
+
+      async function runRelationTransitionJudge() {
+        if (relationTransitionJudgeLoading) return;
+        if (!relationTransitionJudgeInput.chatHistory.trim()) {
+          showErr("请先填写 10 轮对话内容（20句话）");
+          return;
+        }
+        if (!relationTransitionJudgeInput.stageCur.trim() || !relationTransitionJudgeInput.stageNext.trim()) {
+          showErr("请先填写当前阶段和下一阶段");
+          return;
+        }
+        if (!relationTransitionJudgeInput.stageSet.trim()) {
+          showErr("请先填写当前阶段设定");
+          return;
+        }
+        showErr("");
+        relationTransitionJudgeLoading = true;
+        relationTransitionJudgeResult = null;
+        renderRelationTransitionTab();
+        try {
+          const response = await fetch("/api/relation-transition-judge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tagline: relationInitInput.tagline || "",
+              chatHistory: relationTransitionJudgeInput.chatHistory,
+              stageSet: relationTransitionJudgeInput.stageSet,
+              stageCur: relationTransitionJudgeInput.stageCur,
+              stageNext: relationTransitionJudgeInput.stageNext,
+            }),
+          });
+          const data = await readApiResponse(response);
+          if (!response.ok) throw new Error(data.error || JSON.stringify(data));
+          relationTransitionJudgeResult = data;
+        } catch (error) {
+          showErr(error instanceof Error ? error.message : String(error));
+        } finally {
+          relationTransitionJudgeLoading = false;
+          renderRelationTransitionTab();
+        }
       }
 
       function renderRelationChatTab() {
