@@ -14,8 +14,8 @@ const AUTO_EVAL_MODEL_ID = process.env.AUTO_EVAL_MODEL || MODEL_ID;
 const ROLE_GEN_MODEL_ID = process.env.ROLE_GEN_MODEL || AUTO_EVAL_MODEL_ID;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_BASE =
-  process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL_ID = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com/v1";
+const GEMINI_MODEL_ID = process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
 const INITIAL_IDT = { i: 15, d: 80, t: 30 };
 const DEFAULT_K_CONFIG = { ki: 1, kd: 1, kt: 1 };
 const Q_KEYS = Array.from({ length: 12 }, (_, index) => `q${index + 1}`);
@@ -1565,54 +1565,56 @@ function extractTaglineFromCharSet(charSet, fallback = "") {
   return String(fallback || "").trim();
 }
 
-function openAiMessagesToGeminiPayload(messages) {
+/**
+ * 仿 GeminiClient._format_messages_for_gemini：
+ * 把 system/user/assistant 消息拼成单段文本，格式为
+ *   System:\n{content}\nUser:\n{content}\nAssistant:\n{content}
+ * 再作为单条 user message 发给 generateContent。
+ */
+function formatMessagesForGemini(messages) {
   const list = Array.isArray(messages) ? messages : [];
-  const systemChunks = [];
-  const contents = [];
+  const parts = [];
   for (const item of list) {
     if (!item || typeof item.content !== "string") continue;
-    if (item.role === "system") {
-      systemChunks.push(item.content);
-      continue;
-    }
-    const role = item.role === "assistant" ? "model" : "user";
-    const text = item.content;
-    const last = contents[contents.length - 1];
-    if (last && last.role === role) {
-      last.parts[0].text += `\n\n${text}`;
-    } else {
-      contents.push({ role, parts: [{ text }] });
-    }
+    const role =
+      item.role === "system"
+        ? "System"
+        : item.role === "assistant"
+        ? "Assistant"
+        : "User";
+    parts.push(`${role}:\n${item.content}`);
   }
-  const systemInstruction =
-    systemChunks.length > 0
-      ? { parts: [{ text: systemChunks.filter(Boolean).join("\n\n") }] }
-      : null;
-  return { systemInstruction, contents };
+  return parts.join("\n");
 }
 
 async function callGemini(apiKey, messages, options = {}) {
   const startedAt = Date.now();
-  const model = typeof options.model === "string" && options.model.trim() ? options.model.trim() : GEMINI_MODEL_ID;
-  const maxOutputTokens = options.max_tokens ?? options.maxOutputTokens ?? 2048;
-  const { systemInstruction, contents } = openAiMessagesToGeminiPayload(messages);
-  if (!contents.length) {
+  const model =
+    typeof options.model === "string" && options.model.trim()
+      ? options.model.trim()
+      : GEMINI_MODEL_ID;
+  const maxOutputTokens = options.max_tokens ?? options.maxOutputTokens ?? 65536;
+
+  const combinedText = formatMessagesForGemini(messages);
+  if (!combinedText.trim()) {
     throw new Error("Gemini 请求缺少有效对话内容");
   }
 
   const body = {
-    contents,
+    contents: [{ role: "user", parts: [{ text: combinedText }] }],
     generationConfig: {
       maxOutputTokens,
       temperature: typeof options.temperature === "number" ? options.temperature : 0.7,
     },
   };
-  if (systemInstruction) body.systemInstruction = systemInstruction;
 
-  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify(body),
   });
 
@@ -2217,9 +2219,9 @@ app.post("/api/evaluate-message", async (req, res) => {
 });
 
 const FENGRONG_MODEL_OPTIONS = [
-  { value: "seed-sc-260215",       llm: "ark" },
-  { value: "seed-2-0-lite-260228", llm: "ark" },
-  { value: "gemini-2.0-flash",     llm: "gemini" },
+  { value: "seed-sc-260215",             llm: "ark" },
+  { value: "gemini-3.1-flash-lite-preview", llm: "gemini" },
+  { value: "gemini-3.1-pro-preview",        llm: "gemini" },
 ];
 
 app.post("/api/role-fengrong", async (req, res) => {
