@@ -996,6 +996,12 @@
       let roleDianjingInput = { ...EMPTY_ROLE_INPUT };
       let roleFengrongResult = null;
       let roleDianjingResult = null;
+      const FENGRONG_MODEL_OPTIONS = [
+        { value: "seed-sc-260215",       label: "seed-sc-260215（火山方舟）",      llm: "ark" },
+        { value: "seed-2-0-lite-260228", label: "seed-2-0-lite-260228（火山方舟）", llm: "ark" },
+        { value: "gemini-2.0-flash",     label: "gemini-2.0-flash（Google Gemini）",llm: "gemini" },
+      ];
+      let roleFengrongModel = sessionStorage.getItem("roleFengrongModel") || "seed-sc-260215";
 
       let activeRelationSubTab = "init";
       let relationInitInput = { tagline: "", userSet: "" };
@@ -1459,7 +1465,20 @@ ${session.result.averageScore}`
         }
       }
 
-      function renderRoleBaseForm({ formEl, input, actionId, buttonLabel, loadingLabel, metaText }) {
+      function renderFengrongLlmControlsHtml() {
+        return `
+              <div>
+                <div class="label">丰荣模型</div>
+                <select id="roleFengrongModelSelect">
+                  ${FENGRONG_MODEL_OPTIONS.map(opt =>
+                    `<option value="${escapeHtml(opt.value)}" ${roleFengrongModel === opt.value ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
+                  ).join("")}
+                </select>
+              </div>
+            `;
+      }
+
+      function renderRoleBaseForm({ formEl, input, actionId, buttonLabel, loadingLabel, metaText, prependBodyHtml = "" }) {
         formEl.innerHTML = `
           <section class="node">
             <div class="node-head">
@@ -1467,6 +1486,7 @@ ${session.result.averageScore}`
               <div class="node-meta">${escapeHtml(metaText)}</div>
             </div>
             <div class="node-body">
+              ${prependBodyHtml}
               <div>
                 <div class="label">角色姓名</div>
                 <input id="${actionId}NameInput" type="text" value="${escapeHtml(input.name)}" placeholder="请填写角色姓名" />
@@ -1595,6 +1615,11 @@ ${session.result.averageScore}`
                     : `<span class="chip">点睛提示词</span>`
                 }
               </div>
+              ${
+                isFengrong
+                  ? `<div class="muted" style="margin-bottom:10px;">模型在左侧「角色基础输入」顶部选择，与下方提示词一起作用于下一次生成。</div>`
+                  : ""
+              }
               <div class="muted">修改后会自动用于下一次${isFengrong ? "丰荣" : "点睛"}生成，刷新页面后恢复默认。</div>
               ${promptFields}
               <div>
@@ -1629,6 +1654,7 @@ ${session.result.averageScore}`
               </div>
               <div class="node-body">
                 <div class="chip-row">
+                  <span class="chip">${escapeHtml(String(roleFengrongResult.model || ""))}</span>
                   <span class="chip">丰荣耗时 ${fmt(roleFengrongResult.trace?.fengrong?.latencyMs)}ms</span>
                   <span class="chip">Intro耗时 ${fmt(roleFengrongResult.trace?.intro?.latencyMs)}ms</span>
                 </div>
@@ -1736,6 +1762,16 @@ ${session.result.averageScore}`
         if (runButton) {
           runButton.addEventListener("click", isFengrong ? runRoleFengrongGeneration : runRoleDianjingGeneration);
         }
+
+        if (isFengrong) {
+          const modelSelect = document.getElementById("roleFengrongModelSelect");
+          if (modelSelect) {
+            modelSelect.addEventListener("change", () => {
+              roleFengrongModel = modelSelect.value;
+              sessionStorage.setItem("roleFengrongModel", roleFengrongModel);
+            });
+          }
+        }
       }
 
       function bindRoleFengrongResultEvents() {
@@ -1775,6 +1811,7 @@ ${session.result.averageScore}`
           buttonLabel: "生成丰荣结果",
           loadingLabel: "丰荣生成中...",
           metaText: "基于角色基础信息生成丰荣结果",
+          prependBodyHtml: renderFengrongLlmControlsHtml(),
         });
         bindRoleBaseFormEvents("fengrong");
         renderRoleFengrongResult();
@@ -1786,6 +1823,7 @@ ${session.result.averageScore}`
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...roleFengrongInput,
+              fengrongModel: roleFengrongModel,
               rolePromptOverrides: {
                 fengrongPrompt: currentRolePromptOverrides().fengrongPrompt,
                 introPrompt: currentRolePromptOverrides().introPrompt,
@@ -1811,6 +1849,7 @@ ${session.result.averageScore}`
             buttonLabel: "生成丰荣结果",
             loadingLabel: "",
             metaText: "基于角色基础信息生成丰荣结果",
+            prependBodyHtml: renderFengrongLlmControlsHtml(),
           });
           bindRoleBaseFormEvents("fengrong");
           renderRoleFengrongResult();
@@ -1907,6 +1946,7 @@ ${session.result.averageScore}`
             buttonLabel: "生成丰荣结果",
             loadingLabel: roleFengrongLoading ? "丰荣生成中..." : "",
             metaText: "基于角色基础信息生成丰荣结果",
+            prependBodyHtml: renderFengrongLlmControlsHtml(),
           });
           renderRoleFengrongResult();
           bindRoleBaseFormEvents("fengrong");

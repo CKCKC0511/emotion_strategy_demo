@@ -12,6 +12,10 @@ const ARK_BASE = process.env.ARK_BASE || "https://ark.cn-beijing.volces.com/api/
 const MODEL_ID = process.env.DOUBAO_MODEL || "doubao-seed-2-0-lite-260215";
 const AUTO_EVAL_MODEL_ID = process.env.AUTO_EVAL_MODEL || MODEL_ID;
 const ROLE_GEN_MODEL_ID = process.env.ROLE_GEN_MODEL || AUTO_EVAL_MODEL_ID;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_BASE =
+  process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_MODEL_ID = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const INITIAL_IDT = { i: 15, d: 80, t: 30 };
 const DEFAULT_K_CONFIG = { ki: 1, kd: 1, kt: 1 };
 const Q_KEYS = Array.from({ length: 12 }, (_, index) => `q${index + 1}`);
@@ -908,7 +912,9 @@ app.get("/api/health", (_req, res) => {
     model: MODEL_ID,
     autoEvalModel: AUTO_EVAL_MODEL_ID,
     roleGenModel: ROLE_GEN_MODEL_ID,
+    geminiModel: GEMINI_MODEL_ID,
     hasArkApiKey: Boolean(process.env.ARK_API_KEY),
+    hasGeminiApiKey: Boolean(GEMINI_API_KEY),
     timestamp: new Date().toISOString(),
   });
 });
@@ -1559,6 +1565,98 @@ function extractTaglineFromCharSet(charSet, fallback = "") {
   return String(fallback || "").trim();
 }
 
+function openAiMessagesToGeminiPayload(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  const systemChunks = [];
+  const contents = [];
+  for (const item of list) {
+    if (!item || typeof item.content !== "string") continue;
+    if (item.role === "system") {
+      systemChunks.push(item.content);
+      continue;
+    }
+    const role = item.role === "assistant" ? "model" : "user";
+    const text = item.content;
+    const last = contents[contents.length - 1];
+    if (last && last.role === role) {
+      last.parts[0].text += `\n\n${text}`;
+    } else {
+      contents.push({ role, parts: [{ text }] });
+    }
+  }
+  const systemInstruction =
+    systemChunks.length > 0
+      ? { parts: [{ text: systemChunks.filter(Boolean).join("\n\n") }] }
+      : null;
+  return { systemInstruction, contents };
+}
+
+async function callGemini(apiKey, messages, options = {}) {
+  const startedAt = Date.now();
+  const model = typeof options.model === "string" && options.model.trim() ? options.model.trim() : GEMINI_MODEL_ID;
+  const maxOutputTokens = options.max_tokens ?? options.maxOutputTokens ?? 2048;
+  const { systemInstruction, contents } = openAiMessagesToGeminiPayload(messages);
+  if (!contents.length) {
+    throw new Error("Gemini 请求缺少有效对话内容");
+  }
+
+  const body = {
+    contents,
+    generationConfig: {
+      maxOutputTokens,
+      temperature: typeof options.temperature === "number" ? options.temperature : 0.7,
+    },
+  };
+  if (systemInstruction) body.systemInstruction = systemInstruction;
+
+  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const latencyMs = Date.now() - startedAt;
+  const text = await r.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Gemini 返回非 JSON：${text.slice(0, 300)}`);
+  }
+
+  if (!r.ok) {
+    const message = data?.error?.message || data?.error?.status || text.slice(0, 200) || "Gemini 请求失败";
+    throw new Error(message);
+  }
+
+  const parts = data.candidates?.[0]?.content?.parts;
+  const content =
+    Array.isArray(parts) ? parts.map((p) => (typeof p.text === "string" ? p.text : "")).join("") : "";
+  if (!content) {
+    const reason = data.candidates?.[0]?.finishReason || "UNKNOWN";
+    throw new Error(`Gemini 未返回文本（finishReason=${reason}）`);
+  }
+
+  const usageMeta = data.usageMetadata;
+  const usage = usageMeta
+    ? {
+        prompt_tokens: usageMeta.promptTokenCount,
+        completion_tokens: usageMeta.candidatesTokenCount,
+        total_tokens: usageMeta.totalTokenCount,
+      }
+    : null;
+
+  return {
+    latencyMs,
+    model,
+    usage,
+    content,
+    reasoning: "",
+    raw: data,
+  };
+}
+
 async function callArk(apiKey, messages, options = {}) {
   const startedAt = Date.now();
   const r = await fetch(`${ARK_BASE}/chat/completions`, {
@@ -2118,11 +2216,30 @@ app.post("/api/evaluate-message", async (req, res) => {
   }
 });
 
+const FENGRONG_MODEL_OPTIONS = [
+  { value: "seed-sc-260215",       llm: "ark" },
+  { value: "seed-2-0-lite-260228", llm: "ark" },
+  { value: "gemini-2.0-flash",     llm: "gemini" },
+];
+
 app.post("/api/role-fengrong", async (req, res) => {
-  const apiKey = process.env.ARK_API_KEY;
-  if (!apiKey) {
+  const arkKey = process.env.ARK_API_KEY;
+  const geminiKey = GEMINI_API_KEY;
+
+  const rawModel = req.body?.fengrongModel;
+  const modelOption =
+    FENGRONG_MODEL_OPTIONS.find((o) => o.value === rawModel) || FENGRONG_MODEL_OPTIONS[0];
+  const chosenModel = modelOption.value;
+  const fengrongLlm = modelOption.llm;
+
+  if (fengrongLlm === "ark" && !arkKey) {
     return res.status(500).json({
       error: "缺少 ARK_API_KEY：复制 .env.example 为 .env 并填入火山方舟 API Key。",
+    });
+  }
+  if (fengrongLlm === "gemini" && !geminiKey) {
+    return res.status(500).json({
+      error: "使用 Gemini 时缺少 GEMINI_API_KEY。",
     });
   }
 
@@ -2133,33 +2250,38 @@ app.post("/api/role-fengrong", async (req, res) => {
   }
 
   try {
-    const fengrongCall = await callArk(apiKey, buildFengrongMessages(input, rolePromptOverrides), {
-      model: ROLE_GEN_MODEL_ID,
-      max_tokens: 1800,
-      reasoning_effort: "low",
-    });
+    const fengrongMessages = buildFengrongMessages(input, rolePromptOverrides);
+    const fengrongCall =
+      fengrongLlm === "gemini"
+        ? await callGemini(geminiKey, fengrongMessages, { model: chosenModel, max_tokens: 1800 })
+        : await callArk(arkKey, fengrongMessages, { model: chosenModel, max_tokens: 1800, reasoning_effort: "low" });
     const charSet = String(fengrongCall.content || "").trim();
     const extractedTagline = extractTaglineFromCharSet(charSet, input.tagline);
-    const introCall = await callArk(apiKey, buildIntroMessages(extractedTagline, rolePromptOverrides), {
-      model: ROLE_GEN_MODEL_ID,
-      max_tokens: 220,
-      reasoning_effort: "low",
-    });
+    const introMessages = buildIntroMessages(extractedTagline, rolePromptOverrides);
+    const introCall =
+      fengrongLlm === "gemini"
+        ? await callGemini(geminiKey, introMessages, { model: chosenModel, max_tokens: 220 })
+        : await callArk(arkKey, introMessages, { model: chosenModel, max_tokens: 220, reasoning_effort: "low" });
     const intro = String(introCall.content || "").trim();
 
     res.json({
-      model: ROLE_GEN_MODEL_ID,
+      fengrongLlm,
+      model: chosenModel,
       input,
       charSet,
       extractedTagline,
       intro,
       trace: {
         fengrong: {
+          llm: fengrongLlm,
+          model: fengrongCall.model,
           latencyMs: fengrongCall.latencyMs,
           usage: fengrongCall.usage,
           output: fengrongCall.content,
         },
         intro: {
+          llm: fengrongLlm,
+          model: introCall.model,
           latencyMs: introCall.latencyMs,
           usage: introCall.usage,
           output: introCall.content,
