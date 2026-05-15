@@ -14,7 +14,7 @@ const AUTO_EVAL_MODEL_ID = process.env.AUTO_EVAL_MODEL || MODEL_ID;
 const ROLE_GEN_MODEL_ID = process.env.ROLE_GEN_MODEL || AUTO_EVAL_MODEL_ID;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_BASE =
-  process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com/v1";
+  process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MODEL_ID = process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
 const INITIAL_IDT = { i: 15, d: 80, t: 30 };
 const DEFAULT_K_CONFIG = { ki: 1, kd: 1, kt: 1 };
