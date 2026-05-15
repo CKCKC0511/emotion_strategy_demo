@@ -2222,7 +2222,6 @@ const FENGRONG_MODEL_OPTIONS = [
   { value: "seed-sc-260215",                llm: "ark" },
   { value: "gemini-3.1-flash-lite-preview", llm: "gemini" },
   { value: "gemini-3.1-pro-preview",        llm: "gemini" },
-  { value: "gemini-2.5-pro",                llm: "gemini" },
 ];
 
 app.post("/api/role-fengrong", async (req, res) => {
